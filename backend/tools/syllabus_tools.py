@@ -1,0 +1,82 @@
+import pdfplumber 
+import vertexai
+from vertexai.generative_models import GenerativeModel, GenerationConfig
+
+ASSIGNMENTS_YEAR = "2025"
+GENERATIVE_MODEL = "gemini-2.0-flash"
+
+def extract_pdf_text(file_path: str) -> dict:
+    """Extracts the text from a pdf file
+
+    Args:
+        file_path (str): The path of the pdf file
+
+    Returns:
+        dict: Status and extracted text as a str or error msg
+    """
+    full_text = "" 
+    try: 
+        with pdfplumber.open(file_path) as pdf: 
+            for page in pdf.pages: 
+                text = page.extract_text()
+                if text:
+                    full_text += f"{text}\n"
+        return {
+            "status": "success",
+            "text": full_text.strip() 
+        }
+
+    except Exception as e: 
+        return {
+            "status": "error",
+            "exception_code": e
+        } 
+    
+def extract_assignments(syllabus_text: str) -> dict:
+    """
+        Receives raw syllabus text, uses the Gemini model to extarct assignment dates,
+        and returns them as a JSON formatted string.
+
+        Args:
+            syllabus_text (str): The full text of the syllabus to parse
+
+        Returns:
+            dict: Status and str containing the structured JSON of extracted assignments or error msg
+    """
+
+    model = GenerativeModel(GENERATIVE_MODEL)
+
+    prompt = f"""
+You are an expert academic assistant. Your task is to extract all assignments and their due dates from the provided syllabus text.
+
+Return the information ONLY as a single JSON object with one key: "assignments".
+The value should be an array of objects, each with three keys:
+- "assignment_name": The name of the assignment (string).
+- "due_date": The due date in "YYYY-MM-DD" format (string). Use the year {ASSIGNMENTS_YEAR}.
+- "description": The description if available (string). Else leave it as an empty string.
+
+Do not include any other text, explanations, or markdown formatting.
+
+Syllabus Text:
+---
+{syllabus_text}
+---
+"""
+    
+    generation_config = GenerationConfig(
+            temperature=0.0,
+            response_mime_type="application/json",
+        )
+    
+    try:
+            response = model.generate_content(prompt, generation_config=generation_config)
+            
+            return {
+                "status": "success",
+                "dates": response.text
+            }
+        
+    except Exception as e:
+        return {
+            "status": "error"
+        }

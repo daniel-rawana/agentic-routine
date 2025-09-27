@@ -1,6 +1,7 @@
 import os
 import asyncio
 from google.adk.agents import Agent
+from dotenv import load_dotenv
 
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
@@ -23,7 +24,8 @@ APP_NAME = "test_app"
 USER_ID = "user_1"
 SESSION_ID = "session_001" # Using a fixed ID for simplicity
 
-os.environ["GOOGLE_API_KEY"] = "AIzaSyDoToYeJBLPNWLiagCLulM9M37KvKw_rZg"
+load_dotenv()
+api_key = os.getenv("GEMINI_API_KEY")
 
 # Create the specific session where the conversation will happen
 async def main():
