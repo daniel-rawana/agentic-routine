@@ -4,11 +4,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from google.adk.agents import Agent
 from tools.calendar_tools import write_to_calendar
+from google.adk.agents import Agent
+from google.adk.models.lite_llm import LiteLlm
 # from google.adk.models.lite_llm import LiteLlm 
 
-MODEL_GEMINI_2_0_FLASH = "gemini-2.0-flash"
-
-AGENT_MODEL = MODEL_GEMINI_2_0_FLASH 
+AGENT_MODEL = AGENT_MODEL = "gemini-2.5-flash"
 
 calendar_agent = Agent(
     name="calendar_agent",
