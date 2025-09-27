@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MessageCircle, Mic, Volume2 } from 'lucide-react';
+import { MessageCircle, Mic, Volume2, Calendar, Users } from 'lucide-react';
 import AIChat from '../components/AIChat';
 
 const AI = () => {
