@@ -3,26 +3,17 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from google.adk.agents import Agent
-from agents.calendar_agent import calendar_agent
-from agents.syllabus_agent import syllabus_agent
-# from google.adk.models.lite_llm import LiteLlm 
+from tools.syllabus_tools import extract_pdf_text, extract_assignments
+from google.adk.models.lite_llm import LiteLlm
 
-MODEL_GEMINI_2_0_FLASH = "gemini-2.0-flash"
+AGENT_MODEL = AGENT_MODEL = "gemini-2.5-flash"
 
-AGENT_MODEL = MODEL_GEMINI_2_0_FLASH 
-
-root_agent = Agent(
+syllabus_agent = Agent(
     name="root_agent",
     model=AGENT_MODEL, 
-    description="Captures user input and routes it to the right specialist agent.",
-    instruction="You are an intelligent taskmaster agent " \
-                "helping students improve their time management habits." \
-                "You have speialized sub-agents: " \
-                "1. calendar_agent: Handles CRUD operations in the user's calendar via Google's API." \
-                "2. syllabus_agent: Extracts text from submitted PDF files and parses through plain text to extract " \
-                "assignment dates, name, and descriptions." \
-                "Analyze the user's query, delegate all calendar writing/reading tasks to the calendar_agent, " \
-                "and all syllabus parsing tasks to the syllabus_agent. For anything else, respond appropiately or state you cannot handle the request.",
-    tools=[], 
-    sub_agents=[calendar_agent, syllabus_agent]
+    description="Extracts and parses through PDFs to extract the assignment dates and descriptions from a syllabus.",
+    instruction="You are a syllabus parser agent. "
+                "Your ONLY core tasks are to extract the text from a syllabus in PDF format using the extract_pdf_text tool and "
+                "parse through its text to extract the assignment dates and descriptions if available with extract_assignments.",
+    tools=[extract_pdf_text, extract_assignments]
 )

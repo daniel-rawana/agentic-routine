@@ -1,51 +1,52 @@
-import os
+# @title Import necessary libraries
 import asyncio
-from google.adk.agents import Agent
-from dotenv import load_dotenv
-
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.genai import types # For creating message Content/Parts
 from agents.root_agent import root_agent
-
-from google.genai import types # For creating message Content/Parts
 
 import warnings
 # Ignore all warnings
 warnings.filterwarnings("ignore")
 
 import logging
+# Suppress asyncio SSL warnings
+logging.getLogger('asyncio').setLevel(logging.CRITICAL)
 logging.basicConfig(level=logging.ERROR)
 
-session_service = InMemorySessionService()
+MODEL_GEMINI_2_0_FLASH = "gpt-4o-mini"
 
 # Define constants for identifying the interaction context
-APP_NAME = "test_app"
+APP_NAME = "weather_tutorial_app"
 USER_ID = "user_1"
-SESSION_ID = "session_001" # Using a fixed ID for simplicity
+SESSION_ID = "session_001"
 
-load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
+# Global variables to be initialized in setup_session
+session_service = None
+session = None
+runner = None
 
-# Create the specific session where the conversation will happen
-async def main():
+async def setup_session():
+    """Initialize session service, session, and runner."""
+    global session_service, session, runner
+    
+    session_service = InMemorySessionService()
+    
+    # Create the specific session where the conversation will happen
     session = await session_service.create_session(
         app_name=APP_NAME,
         user_id=USER_ID,
         session_id=SESSION_ID
     )
     print(f"Session created: App='{APP_NAME}', User='{USER_ID}', Session='{SESSION_ID}'")
-
-    # --- Runner ---
-    # Key Concept: Runner orchestrates the agent execution loop.
+    
+    # Create runner to orchestrate the agent execution loop
     runner = Runner(
-        agent=root_agent, # The agent we want to run
-        app_name=APP_NAME,   # Associates runs with our app
-        session_service=session_service # Uses our session manager
+        agent=root_agent,
+        app_name=APP_NAME,
+        session_service=session_service
     )
     print(f"Runner created for agent '{runner.agent.name}'.")
-
-    await run_conversation(runner)
 
 async def call_agent_async(query: str, runner, user_id, session_id):
   """Sends a query to the agent and prints the final response."""
@@ -74,12 +75,49 @@ async def call_agent_async(query: str, runner, user_id, session_id):
 
   print(f"<<< Agent Response: {final_response_text}")
 
-async def run_conversation(runner):
-    await call_agent_async("Schedule hackathon project on sunday midnight",
-                                       runner=runner,
-                                       user_id=USER_ID,
-                                       session_id=SESSION_ID)
+async def run_conversation():
+    """Main conversation function that sets up session and runs queries."""
+    try:
+        # Initialize session and runner
+        await setup_session()
+        
+        # Run conversation queries
+        await call_agent_async(f"Can you schedule my COP Test for friday morning? ",
+                              runner=runner,
+                              user_id=USER_ID,
+                              session_id=SESSION_ID)
+    finally:
+        # Properly close any open connections
+        if runner and hasattr(runner, 'close'):
+            await runner.close()
 
+async def main():
+    """Main entry point with proper cleanup."""
+    try:
+        await run_conversation()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        # Give more time for cleanup and close any pending tasks
+        await asyncio.sleep(0.5)
+        
+        # Cancel any remaining tasks
+        tasks = [task for task in asyncio.all_tasks() if not task.done()]
+        for task in tasks:
+            task.cancel()
+        
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Use a custom event loop policy to handle cleanup better
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nInterrupted by user")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+    finally:
+        # Force garbage collection to clean up any remaining objects
+        import gc
+        gc.collect()
