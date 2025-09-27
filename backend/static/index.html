@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ title }}</title>
+</head>
+<body>
+  <h1>Welcome to FastAPI UI</h1>
+  <p>Try calling the API endpoint:</p>
+  <script>
+    fetch('/api/hello?name=Dan')
+      .then(res => res.json())
+      .then(data => console.log(data));
+  </script>
+</body>
+</html>
