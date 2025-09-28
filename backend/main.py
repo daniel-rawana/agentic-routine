@@ -14,7 +14,7 @@ from google.genai.types import (
     Content,
     Blob,
 )
-
+from utils.supabase import get_supabase
 from google.adk.runners import InMemoryRunner
 from google.adk.agents import LiveRequestQueue
 from google.adk.agents.run_config import RunConfig
