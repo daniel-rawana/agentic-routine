@@ -23,6 +23,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from agents.root_agent import root_agent
+from tools.calendar_tools import get_upcoming_events
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
@@ -204,4 +205,14 @@ async def send_message_endpoint(user_id: int, request: Request):
         return {"error": f"Mime type not supported: {mime_type}"}
 
     return {"status": "sent"}
+
+
+@app.get("/api/calendar/events")
+async def get_calendar_events(max_results: int = 10):
+    """Get upcoming calendar events"""
+    try:
+        events = get_upcoming_events(max_results)
+        return events
+    except Exception as e:
+        return {"error": str(e)}
 

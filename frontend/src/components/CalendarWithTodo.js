@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, Plus, Check, Trash2 } from 'lucide-react';
 
@@ -10,8 +10,34 @@ const CalendarWithTodo = () => {
     { id: 3, text: 'Call mom', date: '2025-01-17', completed: false },
   ]);
   const [newTask, setNewTask] = useState('');
+  const [calendarEvents, setCalendarEvents] = useState([]);
 
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // Fetch calendar events from backend
+  useEffect(() => {
+    const fetchCalendarEvents = async () => {
+      try {
+        const response = await fetch('http://localhost:8000/api/calendar/events');
+        if (response.ok) {
+          const events = await response.json();
+          // Convert Google Calendar events to our task format
+          const formattedEvents = events.map(event => ({
+            id: `cal_${event.id}`,
+            text: event.summary || 'Untitled Event',
+            date: event.start?.dateTime?.split('T')[0] || event.start?.date,
+            completed: false,
+            isCalendarEvent: true
+          }));
+          setCalendarEvents(formattedEvents);
+        }
+      } catch (error) {
+        console.error('Failed to fetch calendar events:', error);
+      }
+    };
+
+    fetchCalendarEvents();
+  }, []);
 
   const addTask = () => {
     if (newTask.trim()) {
@@ -29,6 +55,9 @@ const CalendarWithTodo = () => {
   };
 
   const daysInMonth = 31; // Simplified
+  
+  // Combine manual tasks and calendar events
+  const allTasks = [...tasks, ...calendarEvents];
 
   return (
     <motion.div 
@@ -54,8 +83,10 @@ const CalendarWithTodo = () => {
         {Array.from({ length: daysInMonth }, (_, i) => (
           <div key={i} className="p-2 h-20 bg-white/50 rounded-lg relative">
             <span className="text-sm">{i + 1}</span>
-            {tasks.filter(task => task.date.endsWith(`-${String(i+1).padStart(2, '0')}`)).map(task => (
-              <div key={task.id} className={`absolute top-1 right-1 w-2 h-2 rounded-full ${task.completed ? 'bg-green-500' : 'bg-red-500'}`} />
+            {allTasks.filter(task => task.date?.endsWith(`-${String(i+1).padStart(2, '0')}`)).map(task => (
+              <div key={task.id} className={`absolute top-1 right-1 w-2 h-2 rounded-full ${
+                task.isCalendarEvent ? 'bg-blue-500' : task.completed ? 'bg-green-500' : 'bg-red-500'
+              }`} />
             ))}
           </div>
         ))}
@@ -78,7 +109,7 @@ const CalendarWithTodo = () => {
               <Plus className="w-5 h-5" />
             </button>
           </div>
-          {tasks.map(task => (
+          {allTasks.map(task => (
             <motion.div
               key={task.id}
               className={`flex items-center gap-3 p-3 rounded-2xl ${task.completed ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}
