@@ -6,8 +6,7 @@ export const handleLogin = (idToken) => {
   // Save the token to local storage
   localStorage.setItem('googleIdToken', idToken);
   
-  // TODO: Send the token to your backend for verification
-  // and retrieve a session token or user data.
+  
 };
 
 export const handleLogout = () => {

@@ -1,63 +1,164 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-// 1. Import GoogleOAuthProvider
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { jwtDecode } from 'jwt-decode';  // ADD THIS IMPORT
 
 import Layout from './components/Layout';
 import Home from './pages/Home';
-import Login from './components/Login'; // Make sure this is the updated Login component
+import Login from './components/Login';
 import Dashboard from './pages/Dashboard';
 import CalendarPage from './pages/Calendar';
 import LeaderboardPage from './pages/LeaderboardPage';
 import AI from './pages/AI';
 import Game from './pages/Game';
 
-// Your Google Client ID
 const GOOGLE_CLIENT_ID = "398045760957-6619kocfprphd6m0ubosm2e4crtgtb4k.apps.googleusercontent.com";
 
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
-  const [user, setUser] = useState(null); // Optional: to store user info
+  const [user, setUser] = useState(null);
+
+  // 🆕 ADD THIS FUNCTION - Initialize gamification profile
+  const initializeGamificationProfile = async (userId) => {
+    try {
+      console.log('🔍 [App.js] Initializing gamification for user:', userId);
+      
+      // Step 1: Validate/create user profile
+      const validateResponse = await fetch(`http://127.0.0.1:8000/api/validate-user/${userId}`, {
+        method: 'POST'
+      });
+      
+      if (validateResponse.ok) {
+        const validateResult = await validateResponse.json();
+        console.log('✅ [App.js] User validation result:', validateResult);
+        
+        if (validateResult.created) {
+          console.log('🎉 [App.js] New gamification profile created!');
+        } else {
+          console.log('✅ [App.js] Existing gamification profile found');
+        }
+        
+        // Step 2: Load user profile data
+        const profileResponse = await fetch(`http://127.0.0.1:8000/api/profile/${userId}`);
+        
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          console.log('✅ [App.js] User gamification profile loaded:', profileData);
+          
+          // Store gamification data in localStorage
+          localStorage.setItem('user_profile', JSON.stringify(profileData));
+          
+        } else {
+          console.error('❌ [App.js] Failed to load user profile');
+        }
+      } else {
+        console.error('❌ [App.js] Failed to validate user');
+      }
+    } catch (error) {
+      console.error('❌ [App.js] Error initializing gamification:', error);
+    }
+  };
 
   useEffect(() => {
-    // 2. Check for a real auth token in localStorage
+    // Check for existing auth token in localStorage
     const savedToken = localStorage.getItem('googleIdToken');
     if (savedToken) {
-      // TODO: You should send this token to your backend for verification
-      // before setting isAuthenticated to true for full security.
-      setIsAuthenticated(true);
-      // Optional: Decode the token to get user info if needed
-      // const decodedToken = jwt_decode(savedToken);
-      // setUser(decodedToken);
+      try {
+        // Decode the JWT token to get user info
+        const decodedToken = jwtDecode(savedToken);
+        console.log('🔍 [App.js] Decoded token:', decodedToken);
+        
+        // Check if token is still valid
+        const currentTime = Date.now() / 1000;
+        if (decodedToken.exp > currentTime) {
+          setIsAuthenticated(true);
+          setUser({
+            id: decodedToken.sub,      // Google user ID
+            email: decodedToken.email,
+            name: decodedToken.name,
+            picture: decodedToken.picture
+          });
+          
+          // 🆕 ADD THIS: Initialize gamification after setting user
+          initializeGamificationProfile(decodedToken.sub);
+          
+        } else {
+          console.log('🔍 [App.js] Token expired, clearing auth');
+          localStorage.removeItem('googleIdToken');
+        }
+      } catch (error) {
+        console.error('❌ [App.js] Error decoding token:', error);
+        localStorage.removeItem('googleIdToken');
+      }
     }
   }, []);
 
-  // 3. New login handler that accepts the ID token from Google
-  const handleLogin = (idToken) => {
+  // 🆕 MODIFY YOUR EXISTING handleLogin FUNCTION
+  const handleLogin = async (idToken) => {
     console.log("Login successful! ID Token received.");
     setIsAuthenticated(true);
     setShowLogin(false);
     localStorage.setItem('googleIdToken', idToken);
     
-    // TODO: Send this token to your backend for proper verification and session creation
+    try {
+      // Decode the token to get user info
+      const decodedToken = jwtDecode(idToken);
+      console.log('🔍 [App.js] Login - Decoded token:', decodedToken);
+      
+      const userData = {
+        id: decodedToken.sub,      // Google user ID
+        email: decodedToken.email,
+        name: decodedToken.name,
+        picture: decodedToken.picture
+      };
+      
+      setUser(userData);
+      
+      // 🆕 ADD THIS: Initialize gamification for newly logged in user
+      await initializeGamificationProfile(decodedToken.sub);
+      
+    } catch (error) {
+      console.error('❌ [App.js] Error processing login:', error);
+    }
   };
 
-  // Register handler that accepts the ID token from Google
-  const handleRegister = (idToken) => {
+  // 🆕 MODIFY YOUR EXISTING handleRegister FUNCTION
+  const handleRegister = async (idToken) => {
     console.log("Registration successful! ID Token received.");
     setIsAuthenticated(true);
     setShowRegister(false);
     localStorage.setItem('googleIdToken', idToken);
     
-    // TODO: Send this token to your backend for user registration and session creation
+    try {
+      // Decode the token to get user info
+      const decodedToken = jwtDecode(idToken);
+      console.log('🔍 [App.js] Register - Decoded token:', decodedToken);
+      
+      const userData = {
+        id: decodedToken.sub,      // Google user ID
+        email: decodedToken.email,
+        name: decodedToken.name,
+        picture: decodedToken.picture
+      };
+      
+      setUser(userData);
+      
+      // 🆕 ADD THIS: Initialize gamification for newly registered user
+      await initializeGamificationProfile(decodedToken.sub);
+      
+    } catch (error) {
+      console.error('❌ [App.js] Error processing registration:', error);
+    }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    setUser(null);
     localStorage.removeItem('googleIdToken');
+    localStorage.removeItem('user_profile');  // 🆕 ADD THIS: Clear gamification data
   };
 
   const ProtectedRoute = ({ children }) => {
@@ -65,10 +166,8 @@ const App = () => {
   };
 
   return (
-    // 4. Wrap the Router with GoogleOAuthProvider and ADD THE SCOPE
     <GoogleOAuthProvider 
       clientId={GOOGLE_CLIENT_ID}
-      // CRITICAL: This scope requests permission to send emails on the user's behalf
       scope="https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email"
     >
       <Router>
@@ -81,6 +180,7 @@ const App = () => {
           showRegister={showRegister}
           setShowRegister={setShowRegister}
           onRegister={handleRegister}
+          user={user}  // 🆕 PASS USER TO LAYOUT
         >
           <Routes>
             <Route path="/" element={<Home />} />
@@ -88,7 +188,7 @@ const App = () => {
               path="/dashboard" 
               element={
                 <ProtectedRoute>
-                  <Dashboard />
+                  <Dashboard user={user} />
                 </ProtectedRoute>
               } 
             />
@@ -96,7 +196,7 @@ const App = () => {
               path="/calendar" 
               element={
                 <ProtectedRoute>
-                  <CalendarPage />
+                  <CalendarPage user={user} />
                 </ProtectedRoute>
               } 
             />
@@ -104,7 +204,7 @@ const App = () => {
               path="/leaderboard" 
               element={
                 <ProtectedRoute>
-                  <LeaderboardPage />
+                  <LeaderboardPage user={user} />
                 </ProtectedRoute>
               } 
             />
@@ -112,7 +212,7 @@ const App = () => {
               path="/ai" 
               element={
                 <ProtectedRoute>
-                  <AI />
+                  <AI user={user} />
                 </ProtectedRoute>
               } 
             />
@@ -120,7 +220,7 @@ const App = () => {
               path="/game" 
               element={
                 <ProtectedRoute>
-                  <Game />
+                  <Game user={user} />
                 </ProtectedRoute>
               } 
             />
