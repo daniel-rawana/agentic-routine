@@ -3,12 +3,12 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from google.adk.agents import Agent
-from tools.calendar_tools import write_to_calendar
+from tools.calendar_tools import write_to_calendar, get_upcoming_events
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
 # from google.adk.models.lite_llm import LiteLlm 
 
-AGENT_MODEL = AGENT_MODEL = "gemini-2.5-flash"
+AGENT_MODEL = "gemini-2.0-flash-exp"
 
 calendar_agent = Agent(
     name="calendar_agent",
@@ -17,5 +17,5 @@ calendar_agent = Agent(
     instruction="You are a calendar and scheduling agent. "
                 "Your ONLY core tasks are read/write to user's calendar via the write_to_calendar tool, "
                 "suggets time slots for tasks, and break down large tasks into substasks.",
-    tools=[write_to_calendar], 
+    tools=[write_to_calendar, get_upcoming_events], 
 )

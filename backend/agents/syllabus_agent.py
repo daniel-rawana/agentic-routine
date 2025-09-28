@@ -6,10 +6,10 @@ from google.adk.agents import Agent
 from tools.syllabus_tools import extract_pdf_text, extract_assignments
 from google.adk.models.lite_llm import LiteLlm
 
-AGENT_MODEL = AGENT_MODEL = "gemini-2.5-flash"
+AGENT_MODEL = "gemini-2.0-flash-exp"
 
 syllabus_agent = Agent(
-    name="root_agent",
+    name="syllabus_agent",
     model=AGENT_MODEL, 
     description="Extracts and parses through PDFs to extract the assignment dates and descriptions from a syllabus.",
     instruction="You are a syllabus parser agent. "
