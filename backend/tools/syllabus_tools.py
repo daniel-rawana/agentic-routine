@@ -1,9 +1,9 @@
 import pdfplumber 
-import vertexai
-from vertexai.generative_models import GenerativeModel, GenerationConfig
+import os
+import google.genai as genai
 
 ASSIGNMENTS_YEAR = "2025"
-GENERATIVE_MODEL = "gpt-4o-mini"
+GENERATIVE_MODEL = "gemini-2.0-flash-exp"
 
 def extract_pdf_text(file_path: str) -> dict:
     """Extracts the text from a pdf file
@@ -47,39 +47,40 @@ def extract_assignments(syllabus_text: str) -> dict:
 
     print("Agent called extract assignments tool\n")
 
-#     model = GenerativeModel(GENERATIVE_MODEL)
+    try:
+        # Configure and create client
+        client = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 
-#     prompt = f"""
-# You are an expert academic assistant. Your task is to extract all assignments and their due dates from the provided syllabus text.
+        prompt = f"""
+You are an expert academic assistant. Your task is to extract all assignments and their due dates from the provided syllabus text.
 
-# Return the information ONLY as a single JSON object with one key: "assignments".
-# The value should be an array of objects, each with three keys:
-# - "assignment_name": The name of the assignment (string).
-# - "due_date": The due date in "YYYY-MM-DD" format (string). Use the year {ASSIGNMENTS_YEAR}.
-# - "description": The description if available (string). Else leave it as an empty string.
+Return the information ONLY as a single JSON object with one key: "assignments".
+The value should be an array of objects, each with three keys:
+- "assignment_name": The name of the assignment (string).
+- "due_date": The due date in "YYYY-MM-DD" format (string). Use the year {ASSIGNMENTS_YEAR}.
+- "description": The description if available (string). Else leave it as an empty string.
 
-# Do not include any other text, explanations, or markdown formatting.
+Do not include any other text, explanations, or markdown formatting.
 
-# Syllabus Text:
-# ---
-# {syllabus_text}
-# ---
-# """
-    
-#     generation_config = GenerationConfig(
-#             temperature=0.0,
-#             response_mime_type="application/json",
-#         )
-    
-#     try:
-#             response = model.generate_content(prompt, generation_config=generation_config)
-            
-#             return {
-#                 "status": "success",
-#                 "dates": response.text
-#             }
+Syllabus Text:
+---
+{syllabus_text}
+---
+"""
         
-#     except Exception as e:
-#         return {
-#             "status": "error"
-#         }
+        response = client.models.generate_content(
+            model=GENERATIVE_MODEL,
+            contents=prompt
+        )
+        
+        return {
+            "status": "success",
+            "assignments": response.text
+        }
+        
+    except Exception as e:
+        print(f"Error in extract_assignments: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
