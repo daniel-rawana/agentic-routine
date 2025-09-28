@@ -1,8 +1,67 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, Send, X, Upload, FileText } from 'lucide-react';
+import { MessageCircle, Send, X, Upload, FileText, MicOff } from 'lucide-react';
 
-const AIChat = ({ isOpen, onClose }) => {
+const API_BASE = "http://localhost:8000";
+
+// --- Audio Playback Utilities ---
+
+/**
+ * Converts a Base64 string to an ArrayBuffer.
+ * @param {string} base64 - Base64 encoded data string.
+ * @returns {ArrayBuffer} ArrayBuffer of the decoded data.
+ */
+function base64ToArrayBuffer(base64) {
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+}
+
+/**
+ * Plays the raw PCM audio data using the Web Audio API.
+ * @param {ArrayBuffer} arrayBuffer - Raw signed 16-bit PCM audio data.
+ */
+function playAudio(arrayBuffer) {
+  // Use 16000Hz sample rate as defined in the recording utility
+  const audioContext = new AudioContext({ sampleRate: 16000 }); 
+  
+  // The raw buffer is signed 16-bit PCM, but Web Audio decode expects an array of floats 
+  // or a compatible WAV/MP3 format. The easiest path is to use a library or convert it.
+  // Since the agent is sending raw PCM, we must manually create the AudioBuffer.
+
+  const pcm16 = new Int16Array(arrayBuffer);
+  const float32Data = new Float32Array(pcm16.length);
+
+  // Convert S16 to Float32 (normalized between -1.0 and 1.0)
+  for (let i = 0; i < pcm16.length; i++) {
+    float32Data[i] = pcm16[i] / 32768.0; 
+  }
+
+  // Create an AudioBuffer
+  const audioBuffer = audioContext.createBuffer(
+    1, // mono
+    float32Data.length,
+    audioContext.sampleRate // 16000
+  );
+
+  // Copy the data to the AudioBuffer
+  audioBuffer.getChannelData(0).set(float32Data);
+
+  // Create a source node
+  const source = audioContext.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(audioContext.destination);
+  source.start();
+}
+
+
+// --- Main Component ---
+
+const AIChat = ({ isOpen, onClose, isRecording, chatApiRef, onRecordingStatusChange }) => {
   const [messages, setMessages] = useState([
     { id: 1, text: "Hey! I'm your AI assistant. How can I help with your day?", sender: 'ai' }
   ]);
@@ -11,30 +70,62 @@ const AIChat = ({ isOpen, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(null);
+  
   const eventSourceRef = useRef(null);
   const sessionIdRef = useRef(null);
   const currentMessageIdRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Initialize SSE connection
-  useEffect(() => {
-    if (isOpen && !sessionIdRef.current) {
-      connectToAgent();
+  /**
+   * Universal sender for text, audio, and control messages.
+   */
+  const sendData = async ({ mime_type, data }) => {
+    if (!sessionIdRef.current) {
+      console.error('No session ID available');
+      return;
     }
     
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
+    const sendUrl = `${API_BASE}/send/${sessionIdRef.current}`;
+    
+    try {
+      const response = await fetch(sendUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mime_type: mime_type,
+          data: data
+        })
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to send message:', response.statusText);
       }
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  };
+
+  /**
+   * Expose API to parent component via ref.
+   */
+  useEffect(() => {
+    chatApiRef.current = {
+      sessionId: sessionIdRef.current,
+      sendData: sendData
     };
-  }, [isOpen]);
+  }, [isConnected, messages]); // Update ref when session ID changes
 
   const connectToAgent = () => {
-    // Generate unique session ID
-    sessionIdRef.current = Math.random().toString().substring(2, 10);
+    // Generate unique session ID on first connection
+    if (!sessionIdRef.current) {
+        sessionIdRef.current = Math.random().toString().substring(2, 10);
+    }
     
-    const sseUrl = `http://localhost:8000/events/${sessionIdRef.current}?is_audio=false`;
+    // NOTE: Set is_audio=true if you want the agent to reply with audio by default.
+    // For this implementation, we rely on the agent to decide the response format.
+    const sseUrl = `${API_BASE}/events/${sessionIdRef.current}`; 
     
     try {
       eventSourceRef.current = new EventSource(sseUrl);
@@ -48,32 +139,40 @@ const AIChat = ({ isOpen, onClose }) => {
         const messageFromServer = JSON.parse(event.data);
         console.log('[AGENT TO CLIENT]', messageFromServer);
         
-        // Handle turn complete
+        // --- 1. Audio Reply Handling ---
+        if (messageFromServer.mime_type === "audio/pcm") {
+            const audioData = base64ToArrayBuffer(messageFromServer.data);
+            playAudio(audioData);
+            
+            // Keep agent in loading/speaking state until turn_complete
+            setIsLoading(true); 
+            onRecordingStatusChange(true); // Notify parent component (AI.jsx)
+            return;
+        }
+
+        // --- 2. Control Messages ---
         if (messageFromServer.turn_complete) {
           currentMessageIdRef.current = null;
           setIsLoading(false);
+          onRecordingStatusChange(false); // Notify parent component (AI.jsx)
           return;
         }
         
-        // Handle interrupted
         if (messageFromServer.interrupted) {
           setIsLoading(false);
+          onRecordingStatusChange(false); // Notify parent component (AI.jsx)
           return;
         }
         
-        // Handle text messages
+        // --- 3. Text Messages (Transcription or response) ---
         if (messageFromServer.mime_type === 'text/plain') {
           const messageText = messageFromServer.data;
-          console.log('Processing text message:', messageText);
-          console.log('Current message ID:', currentMessageIdRef.current);
           
           setMessages(prev => {
-            console.log('Previous messages:', prev);
             const newMessages = [...prev];
             
             // Start a new AI message if needed
             if (!currentMessageIdRef.current) {
-              console.log('Creating new AI message');
               currentMessageIdRef.current = `ai-${Date.now()}`;
               newMessages.push({
                 id: currentMessageIdRef.current,
@@ -82,19 +181,15 @@ const AIChat = ({ isOpen, onClose }) => {
               });
             } else {
               // Append to existing AI message
-              console.log('Appending to existing message');
               const messageIndex = newMessages.findIndex(
                 msg => msg.id === currentMessageIdRef.current
               );
               if (messageIndex !== -1) {
-                console.log('Found message at index:', messageIndex);
                 newMessages[messageIndex] = {
                   ...newMessages[messageIndex],
                   text: newMessages[messageIndex].text + messageText
                 };
-                console.log('Updated message text:', newMessages[messageIndex].text);
               } else {
-                console.log('Message not found, creating new one');
                 currentMessageIdRef.current = `ai-${Date.now()}`;
                 newMessages.push({
                   id: currentMessageIdRef.current,
@@ -103,10 +198,10 @@ const AIChat = ({ isOpen, onClose }) => {
                 });
               }
             }
-            
-            console.log('New messages array:', newMessages);
             return newMessages;
           });
+          setIsLoading(true); // Agent is still responding
+          onRecordingStatusChange(true); // Notify parent component (AI.jsx)
         }
       };
       
@@ -114,6 +209,7 @@ const AIChat = ({ isOpen, onClose }) => {
         console.error('SSE connection error:', error);
         setIsConnected(false);
         setIsLoading(false);
+        onRecordingStatusChange(false);
         
         // Attempt to reconnect after 5 seconds
         setTimeout(() => {
@@ -129,53 +225,46 @@ const AIChat = ({ isOpen, onClose }) => {
     }
   };
 
-  const sendMessage = async (message) => {
-    if (!sessionIdRef.current) {
-      console.error('No session ID available');
-      return;
+  // Initialize SSE connection on mount/open
+  useEffect(() => {
+    if (isOpen && !sessionIdRef.current) {
+      connectToAgent();
     }
     
-    const sendUrl = `http://localhost:8000/send/${sessionIdRef.current}`;
-    
-    try {
-      const response = await fetch(sendUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mime_type: 'text/plain',
-          data: message
-        })
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to send message:', response.statusText);
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
-    }
+      // Clean up ref on unmount
+      if (chatApiRef.current) {
+          chatApiRef.current = { sessionId: null, sendData: (data) => console.error("API closed:", data) };
+      }
+    };
+  }, [isOpen]);
+
+  const sendMessage = (message) => {
+    // Add user message to chat first
+    setMessages(prev => [
+      ...prev, 
+      { id: `user-${Date.now()}`, text: message, sender: 'user' }
+    ]);
+    
+    // Send message to agent
+    sendData({ mime_type: 'text/plain', data: message });
+    setIsLoading(true);
+    setInput('');
+    onRecordingStatusChange(true); // Indicate agent is thinking
   };
 
   const handleSend = () => {
     if (input.trim() && isConnected) {
       const userMessage = input.trim();
-      
-      // Add user message to chat
-      setMessages(prev => [
-        ...prev, 
-        { id: `user-${Date.now()}`, text: userMessage, sender: 'user' }
-      ]);
-      
-      // Send message to agent
       sendMessage(userMessage);
-      setIsLoading(true);
-      setInput('');
-      
-      console.log('[CLIENT TO AGENT]', userMessage);
     }
   };
 
+  // --- File Upload Logic (Unchanged) ---
   const validateFile = (file) => {
     if (file.type !== 'application/pdf') {
       alert('Please upload only PDF files');
@@ -197,13 +286,12 @@ const AIChat = ({ isOpen, onClose }) => {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await fetch(`http://localhost:8000/upload-pdf/${sessionIdRef.current}`, {
+      const response = await fetch(`${API_BASE}/upload-pdf/${sessionIdRef.current}`, {
         method: 'POST',
         body: formData
       });
       
       if (response.ok) {
-        // Add file message to chat
         setMessages(prev => [
           ...prev, 
           { 
@@ -214,9 +302,7 @@ const AIChat = ({ isOpen, onClose }) => {
           }
         ]);
         
-        // Send processing message to agent
         sendMessage(`Please extract assignment dates from the uploaded PDF: ${file.name}`);
-        setIsLoading(true);
       } else {
         alert('Failed to upload file');
       }
@@ -253,11 +339,14 @@ const AIChat = ({ isOpen, onClose }) => {
     if (files.length > 0) {
       uploadFile(files[0]);
     }
-    // Reset input
     e.target.value = '';
   };
+  // --- End File Upload Logic ---
 
   if (!isOpen) return null;
+  
+  // Disable input if recording or agent is thinking/speaking
+  const isInputDisabled = !isConnected || isLoading || isRecording;
 
   return (
     <motion.div 
@@ -286,7 +375,12 @@ const AIChat = ({ isOpen, onClose }) => {
               }`} />
             </div>
             <h3 className="font-bold text-gray-800">AI Assistant</h3>
-            {isLoading && (
+            {isRecording && (
+                <span className="text-red-500 font-medium text-sm flex items-center gap-1">
+                    <MicOff className="w-4 h-4" /> Mic Active
+                </span>
+            )}
+            {isLoading && !isRecording && (
               <div className="flex items-center gap-1 text-sm text-gray-500">
                 <div className="animate-pulse">•</div>
                 <div className="animate-pulse delay-100">•</div>
@@ -356,9 +450,9 @@ const AIChat = ({ isOpen, onClose }) => {
           <div className="flex gap-2">
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={!isConnected || uploadingFile}
+              disabled={isInputDisabled || uploadingFile}
               className={`p-2 rounded-full transition-colors ${
-                isConnected && !uploadingFile
+                !isInputDisabled && !uploadingFile
                   ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' 
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
               }`}
@@ -378,14 +472,15 @@ const AIChat = ({ isOpen, onClose }) => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-              placeholder="Type your message or drop a PDF..."
+              placeholder={isRecording ? "Stop recording to type..." : "Type your message or drop a PDF..."}
               className="flex-1 px-4 py-2 border border-gray-300 rounded-full outline-none"
+              disabled={isInputDisabled}
             />
             <button 
               onClick={handleSend} 
-              disabled={!isConnected || isLoading}
+              disabled={isInputDisabled || !input.trim()}
               className={`p-2 rounded-full transition-colors ${
-                isConnected && !isLoading 
+                !isInputDisabled && input.trim()
                   ? 'bg-blue-500 text-white hover:bg-blue-600' 
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
