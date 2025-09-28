@@ -165,7 +165,7 @@ const handleLogout = () => {
   return (
     <GoogleOAuthProvider 
       clientId={GOOGLE_CLIENT_ID}
-      scope="https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email"
+      scope="https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/calendar.readonly"
     >
       <Router>
         <Layout 

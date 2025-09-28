@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, Home, Calendar, Users, MessageCircle, Gamepad2, User, LogOut, X, UserPlus, Flame, Star, Zap } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';

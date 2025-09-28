@@ -17,15 +17,24 @@ const Login = ({ onLogin, onShowRegister }) => {
         localStorage.setItem('googleAccessToken', tokenResponse.access_token);
         localStorage.setItem('tokenExpiresAt', Date.now() + (tokenResponse.expires_in * 1000));
         
-        // Verify Gmail scope was granted
+        // Verify Gmail and Calendar scopes were granted
         const hasGmailScope = tokenResponse.scope && tokenResponse.scope.includes('gmail.send');
+        const hasCalendarScope = tokenResponse.scope && tokenResponse.scope.includes('calendar.readonly');
         console.log('📬 Gmail send scope granted:', hasGmailScope ? 'YES' : 'NO');
+        console.log('📅 Calendar readonly scope granted:', hasCalendarScope ? 'YES' : 'NO');
         
         if (hasGmailScope) {
           localStorage.setItem('hasGmailPermission', 'true');
         } else {
           console.warn('⚠️ Gmail send scope not granted!');
           localStorage.setItem('hasGmailPermission', 'false');
+        }
+        
+        if (hasCalendarScope) {
+          localStorage.setItem('hasCalendarPermission', 'true');
+        } else {
+          console.warn('⚠️ Calendar readonly scope not granted!');
+          localStorage.setItem('hasCalendarPermission', 'false');
         }
         
         try {
@@ -85,8 +94,8 @@ const Login = ({ onLogin, onShowRegister }) => {
       console.error('❌ Google Login Failed:', error);
       alert('Login failed. Please try again.');
     },
-    // CRITICAL: These scopes must be granted for Gmail to work
-    scope: 'openid email profile https://www.googleapis.com/auth/gmail.send',
+    // CRITICAL: These scopes must be granted for Gmail and Calendar to work
+    scope: 'openid email profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar.readonly',
     // Force consent screen to ensure scopes are properly granted
     prompt: 'consent'
   });
