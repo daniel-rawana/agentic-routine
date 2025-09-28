@@ -6,6 +6,7 @@ import shutil
 import tempfile
 
 from pathlib import Path
+from routes import api, auth, tasks, user
 from dotenv import load_dotenv
 
 from google.genai.types import (
@@ -13,7 +14,7 @@ from google.genai.types import (
     Content,
     Blob,
 )
-
+from utils.supabase import get_supabase
 from google.adk.runners import InMemoryRunner
 from google.adk.agents import LiveRequestQueue
 from google.adk.agents.run_config import RunConfig
@@ -131,6 +132,10 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # Store active sessions
 active_sessions = {}
 
+app.include_router(api.router, prefix="/api")
+app.include_router(auth.router, prefix="/auth")
+app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(user.router) 
 
 @app.get("/")
 async def root():
