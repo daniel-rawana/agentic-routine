@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Gamepad2, Star } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Gamepad2, Star, X } from 'lucide-react';
 
 const MiniGame = () => {
   const [avatar, setAvatar] = useState({
@@ -12,6 +12,22 @@ const MiniGame = () => {
   });
 
   const [playing, setPlaying] = useState(false);
+  const [gameOpen, setGameOpen] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [gameOver, setGameOver] = useState(false);
+  const [score, setScore] = useState(0);
+  const [highScore, setHighScore] = useState(0);
+  
+  // Game refs
+  const canvasRef = useRef(null);
+  const gameLoopRef = useRef(null);
+  const gameStateRef = useRef({
+    dino: { x: 50, y: 150, width: 40, height: 40, velocityY: 0, isJumping: false },
+    obstacles: [],
+    gameSpeed: 2,
+    lastObstacleTime: 0,
+    isGameRunning: false
+  });
 
   // ✅ Compose a valid DiceBear v7 URL with the adventurer sprite
   const avatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${avatar.seed}${
@@ -27,14 +43,143 @@ const MiniGame = () => {
     { id: 'accessories', label: 'Glasses', cost: 40, type: 'accessories', value: 'roundGlasses' },
   ];
 
-  // 🎮 Simulate earning rewards
+  // 🎮 Start the Dino game
   const playGame = () => {
-    setPlaying(true);
-    setTimeout(() => {
-      setAvatar(prev => ({ ...prev, rewards: prev.rewards + 5 }));
-      setPlaying(false);
-    }, 2000);
+    setGameOpen(true);
+    setGameStarted(false);
+    setGameOver(false);
+    setScore(0);
   };
+
+  // Game functions
+  const startGame = () => {
+    setGameStarted(true);
+    setGameOver(false);
+    setScore(0);
+    gameStateRef.current.isGameRunning = true;
+    gameStateRef.current.dino = { x: 50, y: 150, width: 40, height: 40, velocityY: 0, isJumping: false };
+    gameStateRef.current.obstacles = [];
+    gameStateRef.current.gameSpeed = 2;
+    gameStateRef.current.lastObstacleTime = 0;
+    gameLoop();
+  };
+
+  const jump = () => {
+    if (!gameStateRef.current.dino.isJumping && gameStateRef.current.isGameRunning) {
+      gameStateRef.current.dino.velocityY = -12;
+      gameStateRef.current.dino.isJumping = true;
+    }
+  };
+
+  const gameLoop = () => {
+    if (!gameStateRef.current.isGameRunning) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw ground
+    ctx.fillStyle = '#535353';
+    ctx.fillRect(0, 190, canvas.width, 10);
+    
+    // Update dino
+    const dino = gameStateRef.current.dino;
+    dino.y += dino.velocityY;
+    dino.velocityY += 0.8; // gravity
+    
+    // Ground collision
+    if (dino.y >= 150) {
+      dino.y = 150;
+      dino.velocityY = 0;
+      dino.isJumping = false;
+    }
+    
+    // Draw dino (simple rectangle for now)
+    ctx.fillStyle = '#535353';
+    ctx.fillRect(dino.x, dino.y, dino.width, dino.height);
+    
+    // Add obstacles
+    const now = Date.now();
+    if (now - gameStateRef.current.lastObstacleTime > 2000) {
+      gameStateRef.current.obstacles.push({
+        x: canvas.width,
+        y: 160,
+        width: 20,
+        height: 30
+      });
+      gameStateRef.current.lastObstacleTime = now;
+    }
+    
+    // Update and draw obstacles
+    gameStateRef.current.obstacles = gameStateRef.current.obstacles.filter(obstacle => {
+      obstacle.x -= gameStateRef.current.gameSpeed;
+      
+      // Draw obstacle
+      ctx.fillStyle = '#535353';
+      ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+      
+      // Collision detection
+      if (dino.x < obstacle.x + obstacle.width &&
+          dino.x + dino.width > obstacle.x &&
+          dino.y < obstacle.y + obstacle.height &&
+          dino.y + dino.height > obstacle.y) {
+        gameOver();
+        return false;
+      }
+      
+      return obstacle.x > -obstacle.width;
+    });
+    
+    // Update score
+    setScore(prev => prev + 1);
+    
+    // Increase speed
+    if (score % 100 === 0) {
+      gameStateRef.current.gameSpeed += 0.1;
+    }
+    
+    gameLoopRef.current = requestAnimationFrame(gameLoop);
+  };
+
+  const gameOver = () => {
+    gameStateRef.current.isGameRunning = false;
+    setGameOver(true);
+    if (score > highScore) {
+      setHighScore(score);
+    }
+    // Award rewards based on score
+    const earnedRewards = Math.floor(score / 100);
+    setAvatar(prev => ({ ...prev, rewards: prev.rewards + earnedRewards }));
+  };
+
+  const closeGame = () => {
+    setGameOpen(false);
+    setGameStarted(false);
+    setGameOver(false);
+    gameStateRef.current.isGameRunning = false;
+    if (gameLoopRef.current) {
+      cancelAnimationFrame(gameLoopRef.current);
+    }
+  };
+
+  // Keyboard controls
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (e.code === 'Space' || e.code === 'ArrowUp') {
+        e.preventDefault();
+        if (gameOpen && gameStarted && !gameOver) {
+          jump();
+        } else if (gameOpen && !gameStarted) {
+          startGame();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [gameOpen, gameStarted, gameOver]);
 
   // 🛍️ Handle shop purchases
   const handlePurchase = (item) => {
@@ -101,13 +246,85 @@ const MiniGame = () => {
       {/* Play Button */}
       <button
         onClick={playGame}
-        disabled={playing}
-        className={`w-full py-4 rounded-2xl font-bold text-white ${
-          playing ? 'bg-gray-400' : 'bg-purple-500 hover:bg-purple-600'
-        }`}
+        className="w-full py-4 rounded-2xl font-bold text-white bg-purple-500 hover:bg-purple-600"
       >
-        {playing ? 'Playing...' : 'Earn Rewards!'}
+        Play Dino Game!
       </button>
+
+      {/* Game Popup */}
+      <AnimatePresence>
+        {gameOpen && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white rounded-2xl p-6 max-w-md w-full"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-800">Dino Runner</h3>
+                <button
+                  onClick={closeGame}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Game Canvas */}
+              <div className="mb-4">
+                <canvas
+                  ref={canvasRef}
+                  width={400}
+                  height={200}
+                  className="border border-gray-300 rounded-lg bg-white"
+                />
+              </div>
+
+              {/* Game Info */}
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <p className="text-sm text-gray-600">Score: {score}</p>
+                  <p className="text-sm text-gray-600">High Score: {highScore}</p>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Press SPACE or ↑ to jump
+                </div>
+              </div>
+
+              {/* Game Controls */}
+              {!gameStarted && !gameOver && (
+                <button
+                  onClick={startGame}
+                  className="w-full py-3 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600"
+                >
+                  Start Game
+                </button>
+              )}
+
+              {gameOver && (
+                <div className="text-center">
+                  <p className="text-lg font-bold text-red-600 mb-2">Game Over!</p>
+                  <p className="text-sm text-gray-600 mb-4">
+                    You earned {Math.floor(score / 100)} rewards!
+                  </p>
+                  <button
+                    onClick={startGame}
+                    className="w-full py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600"
+                  >
+                    Play Again
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
