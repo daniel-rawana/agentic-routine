@@ -11,6 +11,7 @@ const AIChat = ({ isOpen, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(null);
+  const [lastCompletedAt, setLastCompletedAt] = useState(null);
   const eventSourceRef = useRef(null);
   const sessionIdRef = useRef(null);
   const currentMessageIdRef = useRef(null);
@@ -52,6 +53,8 @@ const AIChat = ({ isOpen, onClose }) => {
         if (messageFromServer.turn_complete) {
           currentMessageIdRef.current = null;
           setIsLoading(false);
+          setLastCompletedAt(new Date());
+          console.log('✅ Agent finished responding at:', new Date().toLocaleTimeString());
           return;
         }
         
@@ -170,6 +173,7 @@ const AIChat = ({ isOpen, onClose }) => {
       // Send message to agent
       sendMessage(userMessage);
       setIsLoading(true);
+      setLastCompletedAt(null); // Reset completion status
       setInput('');
       
       console.log('[CLIENT TO AGENT]', userMessage);
@@ -286,11 +290,17 @@ const AIChat = ({ isOpen, onClose }) => {
               }`} />
             </div>
             <h3 className="font-bold text-gray-800">AI Assistant</h3>
-            {isLoading && (
+            {isLoading ? (
               <div className="flex items-center gap-1 text-sm text-gray-500">
                 <div className="animate-pulse">•</div>
                 <div className="animate-pulse delay-100">•</div>
                 <div className="animate-pulse delay-200">•</div>
+                <span className="ml-1">Thinking...</span>
+              </div>
+            ) : lastCompletedAt && (
+              <div className="flex items-center gap-1 text-sm text-green-600">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span>Ready</span>
               </div>
             )}
           </div>
@@ -348,6 +358,20 @@ const AIChat = ({ isOpen, onClose }) => {
                   <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
                   Uploading {uploadingFile.name}...
                 </div>
+              </div>
+            </motion.div>
+          )}
+          
+          {!isLoading && lastCompletedAt && (
+            <motion.div
+              className="flex justify-start"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-3 py-1 rounded-full">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span>Response complete • {lastCompletedAt.toLocaleTimeString()}</span>
               </div>
             </motion.div>
           )}
