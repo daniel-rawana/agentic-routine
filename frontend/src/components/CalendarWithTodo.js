@@ -5,21 +5,7 @@ import { addXP, getGamificationStatsFromState } from '../utils/gamification';
 
 const CalendarWithTodo = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  
-  // Load tasks from localStorage or use default
-  const loadTasks = () => {
-    const savedTasks = localStorage.getItem('calendar_tasks');
-    if (savedTasks) {
-      return JSON.parse(savedTasks);
-    }
-    return [
-      { id: 1, text: 'Finish project report', date: '2025-01-15', completed: false },
-      { id: 2, text: 'Gym session', date: '2025-01-16', completed: true },
-      { id: 3, text: 'Call mom', date: '2025-01-17', completed: false },
-    ];
-  };
-  
-  const [tasks, setTasks] = useState(loadTasks);
+  const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
   const [calendarEvents, setCalendarEvents] = useState([]);
   
@@ -69,36 +55,58 @@ const CalendarWithTodo = () => {
     }
   };
 
-  const toggleTask = (id) => {
-    const updatedTasks = tasks.map(task => {
-      if (task.id === id) {
-        const wasCompleted = task.completed;
-        const newCompleted = !task.completed;
+  const toggleTask = async (id) => {
+    if (id.toString().startsWith('cal_')) {
+      // For calendar events, checking them off deletes them
+      const event = calendarEvents.find(e => e.id === id);
+      if (event && !event.completed) {
+        // Mark as completed temporarily for visual feedback
+        setCalendarEvents(prev => prev.map(event => 
+          event.id === id ? { ...event, completed: true } : event
+        ));
         
-        // Award XP only when completing a task (not uncompleting)
-        if (!wasCompleted && newCompleted) {
-          const updatedStats = addXP(50);
-          setGamificationStats(updatedStats);
-          
-          // Show XP gain animation
-          setXPGainAmount(50);
-          setShowXPGain(true);
-          setTimeout(() => setShowXPGain(false), 2000);
-        }
-        
-        return { ...task, completed: newCompleted };
+        // Then delete the event after a short delay
+        setTimeout(async () => {
+          await deleteCalendarEvent(id);
+        }, 500);
       }
-      return task;
-    });
-    
-    setTasks(updatedTasks);
-    saveTasks(updatedTasks);
+    } else {
+      // Toggle manual tasks normally
+      setTasks(prev => prev.map(task => 
+        task.id === id ? { ...task, completed: !task.completed } : task
+      ));
+    }
   };
 
-  const deleteTask = (id) => {
-    const updatedTasks = tasks.filter(task => task.id !== id);
-    setTasks(updatedTasks);
-    saveTasks(updatedTasks);
+  const deleteTask = async (id) => {
+    if (id.toString().startsWith('cal_')) {
+      // Delete calendar event via API
+      await deleteCalendarEvent(id);
+    } else {
+      // Delete manual task
+      setTasks(prev => prev.filter(task => task.id !== id));
+    }
+  };
+
+  const deleteCalendarEvent = async (eventId) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/calendar/events/${eventId}`, {
+        method: 'DELETE'
+      });
+      
+      if (response.ok) {
+        // Remove from calendar events state
+        setCalendarEvents(prev => prev.filter(event => event.id !== eventId));
+        console.log('Calendar event deleted successfully');
+      } else {
+        const error = await response.json();
+        console.error('Failed to delete calendar event:', error);
+        alert('Failed to delete calendar event. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error deleting calendar event:', error);
+      alert('Error deleting calendar event. Please check your connection.');
+    }
   };
 
   const daysInMonth = 31; // Simplified
@@ -170,15 +178,57 @@ const CalendarWithTodo = () => {
           {allTasks.map(task => (
             <motion.div
               key={task.id}
-              className={`flex items-center gap-3 p-3 rounded-2xl ${task.completed ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}
+              className={`flex items-center gap-3 p-3 rounded-2xl ${
+                task.isCalendarEvent 
+                  ? 'bg-blue-50 border border-blue-200' 
+                  : task.completed 
+                    ? 'bg-green-50 border border-green-200' 
+                    : 'bg-gray-50 border border-gray-200'
+              }`}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
             >
-              <button onClick={() => toggleTask(task.id)} className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${task.completed ? 'bg-green-500 border-green-500' : 'border-gray-300'}`}>
+              <button 
+                onClick={() => toggleTask(task.id)} 
+                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
+                  task.isCalendarEvent 
+                    ? task.completed
+                      ? 'bg-blue-500 border-blue-500 hover:bg-blue-600' 
+                      : 'bg-blue-100 border-blue-300 hover:bg-blue-200'
+                    : task.completed 
+                      ? 'bg-green-500 border-green-500 hover:bg-green-600' 
+                      : 'border-gray-300 hover:border-gray-400'
+                }`}
+                title={task.isCalendarEvent ? 'Mark as attended and delete from calendar' : 'Toggle task completion'}
+              >
                 {task.completed && <Check className="w-4 h-4 text-white" />}
+                {task.isCalendarEvent && !task.completed && <Calendar className="w-3 h-3 text-blue-600" />}
               </button>
-              <span className={`${task.completed ? 'line-through text-gray-500' : 'text-gray-800'} flex-1`}>{task.text}</span>
-              <button onClick={() => deleteTask(task.id)} className="p-1 text-red-500 hover:bg-red-100 rounded-full">
+              <span className={`${
+                task.completed 
+                  ? task.isCalendarEvent
+                    ? 'text-blue-600 font-medium opacity-75'
+                    : 'line-through text-gray-500'
+                  : task.isCalendarEvent 
+                    ? 'text-blue-800 font-medium' 
+                    : 'text-gray-800'
+              } flex-1`}>
+                {task.text}
+                {task.isCalendarEvent && (
+                  <span className={`text-xs ml-2 ${task.completed ? 'text-blue-500' : 'text-blue-600'}`}>
+                    (Calendar Event{task.completed ? ' - Deleting...' : ''})
+                  </span>
+                )}
+              </span>
+              <button 
+                onClick={() => deleteTask(task.id)} 
+                className={`p-1 rounded-full ${
+                  task.isCalendarEvent 
+                    ? 'text-blue-600 hover:bg-blue-100' 
+                    : 'text-red-500 hover:bg-red-100'
+                }`}
+                title={task.isCalendarEvent ? 'Delete calendar event' : 'Delete task'}
+              >
                 <Trash2 className="w-4 h-4" />
               </button>
             </motion.div>
