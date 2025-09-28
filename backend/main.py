@@ -25,7 +25,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from agents.root_agent import root_agent
-from tools.calendar_tools import get_upcoming_events
+from tools.calendar_tools import get_upcoming_events, delete_event
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
@@ -265,6 +265,18 @@ async def get_calendar_events(max_results: int = 10):
     try:
         events = get_upcoming_events(max_results)
         return events
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.delete("/api/calendar/events/{event_id}")
+async def delete_calendar_event(event_id: str):
+    """Delete a calendar event by ID"""
+    try:
+        # Remove the 'cal_' prefix if it exists (from frontend formatting)
+        actual_event_id = event_id.replace('cal_', '')
+        result = delete_event(actual_event_id)
+        return result
     except Exception as e:
         return {"error": str(e)}
 
