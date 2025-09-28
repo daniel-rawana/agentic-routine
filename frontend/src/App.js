@@ -65,8 +65,12 @@ const App = () => {
   };
 
   return (
-    // 4. Wrap the Router with GoogleOAuthProvider
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+    // 4. Wrap the Router with GoogleOAuthProvider and ADD THE SCOPE
+    <GoogleOAuthProvider 
+      clientId={GOOGLE_CLIENT_ID}
+      // CRITICAL: This scope requests permission to send emails on the user's behalf
+      scope="https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email"
+    >
       <Router>
         <Layout 
           isAuthenticated={isAuthenticated} 
