@@ -70,7 +70,7 @@ const AIChat = ({ isOpen, onClose, isRecording, chatApiRef, onRecordingStatusCha
   const [isLoading, setIsLoading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(null);
-  
+  const [lastCompletedAt, setLastCompletedAt] = useState(null);
   const eventSourceRef = useRef(null);
   const sessionIdRef = useRef(null);
   const currentMessageIdRef = useRef(null);
@@ -154,7 +154,10 @@ const AIChat = ({ isOpen, onClose, isRecording, chatApiRef, onRecordingStatusCha
         if (messageFromServer.turn_complete) {
           currentMessageIdRef.current = null;
           setIsLoading(false);
+          setLastCompletedAt(new Date());
+          console.log('✅ Agent finished responding at:', new Date().toLocaleTimeString());
           onRecordingStatusChange(false); // Notify parent component (AI.jsx)
+
           return;
         }
         
@@ -261,6 +264,11 @@ const AIChat = ({ isOpen, onClose, isRecording, chatApiRef, onRecordingStatusCha
     if (input.trim() && isConnected) {
       const userMessage = input.trim();
       sendMessage(userMessage);
+      setIsLoading(true);
+      setLastCompletedAt(null); // Reset completion status
+      setInput('');
+      
+      console.log('[CLIENT TO AGENT]', userMessage);
     }
   };
 
@@ -375,6 +383,8 @@ const AIChat = ({ isOpen, onClose, isRecording, chatApiRef, onRecordingStatusCha
               }`} />
             </div>
             <h3 className="font-bold text-gray-800">AI Assistant</h3>
+
+            {isLoading ? (
             {isRecording && (
                 <span className="text-red-500 font-medium text-sm flex items-center gap-1">
                     <MicOff className="w-4 h-4" /> Mic Active
@@ -385,6 +395,12 @@ const AIChat = ({ isOpen, onClose, isRecording, chatApiRef, onRecordingStatusCha
                 <div className="animate-pulse">•</div>
                 <div className="animate-pulse delay-100">•</div>
                 <div className="animate-pulse delay-200">•</div>
+                <span className="ml-1">Thinking...</span>
+              </div>
+            ) : lastCompletedAt && (
+              <div className="flex items-center gap-1 text-sm text-green-600">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span>Ready</span>
               </div>
             )}
           </div>
@@ -442,6 +458,20 @@ const AIChat = ({ isOpen, onClose, isRecording, chatApiRef, onRecordingStatusCha
                   <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
                   Uploading {uploadingFile.name}...
                 </div>
+              </div>
+            </motion.div>
+          )}
+          
+          {!isLoading && lastCompletedAt && (
+            <motion.div
+              className="flex justify-start"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-3 py-1 rounded-full">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span>Response complete • {lastCompletedAt.toLocaleTimeString()}</span>
               </div>
             </motion.div>
           )}
