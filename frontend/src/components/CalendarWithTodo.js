@@ -5,7 +5,21 @@ import { addXP, getGamificationStatsFromState } from '../utils/gamification';
 
 const CalendarWithTodo = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [tasks, setTasks] = useState([]);
+  
+  // Load tasks from localStorage or use default
+  const loadTasks = () => {
+    const savedTasks = localStorage.getItem('calendar_tasks');
+    if (savedTasks) {
+      return JSON.parse(savedTasks);
+    }
+    return [
+      { id: 1, text: 'Finish project report', date: '2025-01-15', completed: false },
+      { id: 2, text: 'Gym session', date: '2025-01-16', completed: true },
+      { id: 3, text: 'Call mom', date: '2025-01-17', completed: false },
+    ];
+  };
+  
+  const [tasks, setTasks] = useState(loadTasks);
   const [newTask, setNewTask] = useState('');
   const [calendarEvents, setCalendarEvents] = useState([]);
   
@@ -72,9 +86,29 @@ const CalendarWithTodo = () => {
       }
     } else {
       // Toggle manual tasks normally
-      setTasks(prev => prev.map(task => 
-        task.id === id ? { ...task, completed: !task.completed } : task
-      ));
+      const updatedTasks = tasks.map(task => {
+        if (task.id === id) {
+          const wasCompleted = task.completed;
+          const newCompleted = !task.completed;
+          
+          // Award XP only when completing a task (not uncompleting)
+          if (!wasCompleted && newCompleted) {
+            const updatedStats = addXP(50);
+            setGamificationStats(updatedStats);
+            
+            // Show XP gain animation
+            setXPGainAmount(50);
+            setShowXPGain(true);
+            setTimeout(() => setShowXPGain(false), 2000);
+          }
+          
+          return { ...task, completed: newCompleted };
+        }
+        return task;
+      });
+      
+      setTasks(updatedTasks);
+      saveTasks(updatedTasks);
     }
   };
 
@@ -84,7 +118,9 @@ const CalendarWithTodo = () => {
       await deleteCalendarEvent(id);
     } else {
       // Delete manual task
-      setTasks(prev => prev.filter(task => task.id !== id));
+      const updatedTasks = tasks.filter(task => task.id !== id);
+      setTasks(updatedTasks);
+      saveTasks(updatedTasks);
     }
   };
 
