@@ -394,9 +394,10 @@ const LeaderboardPage = () => {
   }, []); // Empty dependency array means this runs once on mount
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#E2A16F] via-[#86B0BD] to-[#D1D3D4] p-6">
+    <div className="min-h-screen bg-white pt-2 px-6 pb-6">
       <motion.div 
-        className="bg-[#FFF0DD]/90 backdrop-blur-xl rounded-3xl p-8 lg:p-12 shadow-xl max-w-4xl mx-auto space-y-8"
+        // CAMBIO 2: El recuadro interior principal ahora tiene el fondo beige 'bg-[#FAF7F0]'.
+        className="bg-[#FAF7F0] rounded-3xl p-8 lg:p-12 shadow-xl border border-gray-100 max-w-4xl mx-auto space-y-8"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
