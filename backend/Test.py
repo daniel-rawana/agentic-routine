@@ -82,7 +82,7 @@ async def run_conversation():
         await setup_session()
         
         # Run conversation queries
-        await call_agent_async(f"Can you schedule my COP Test for friday morning? ",
+        await call_agent_async(f"What are the upcoming events on my calendar? ? ",
                               runner=runner,
                               user_id=USER_ID,
                               session_id=SESSION_ID)

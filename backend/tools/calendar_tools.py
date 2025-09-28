@@ -8,7 +8,25 @@ from googleapiclient.errors import HttpError
 
 SCOPES = ['https://www.googleapis.com/auth/calendar.events']
 
-def write_to_calendar(event_summary: str, start_time: str, end_time: str) -> bool:
+def authenticate(): 
+    """Handles OAuth authentication and token management."""
+    creds = None 
+
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+
+    return build('calendar', 'v3', credentials=creds)
+
+def write_to_calendar(event_summary: str, start_time: str, end_time: str) -> dict:
     """Writes events into the user's calendar
 
     Args:
@@ -19,25 +37,13 @@ def write_to_calendar(event_summary: str, start_time: str, end_time: str) -> boo
                         (e.g., '2025-09-29T16:00:00-04:00').
 
     Returns:
-        bool: A boolean value that indicates wheter the function was executed correctly
+        dict: Status of the request and htmlLink or error msg
     """
     print(f"--- Tool: write_to_calendar called for: {event_summary} ---") 
-    creds = None 
-
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refres(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
 
     try:
-        service = build('calendar', 'v3', credentials=creds)
+        
+        service = authenticate()
         
         event = {
             'summary': event_summary,
@@ -53,8 +59,43 @@ def write_to_calendar(event_summary: str, start_time: str, end_time: str) -> boo
         
         created_event = service.events().insert(calendarId='primary', body=event).execute()
         print(f"Event created: {created_event.get('htmlLink')}")
-        return True
+        return {
+            "status": "success",
+            "htmlLink": created_event.get('htmlLink')
+        }
 
     except HttpError as error:
         print(f"An error occurred: {error}")
-        return False
+        return {
+            "status": "error"
+        }
+    
+def get_upcoming_events(max_results: int = 10):
+    """
+    Fetches upcoming events and returns them as a list of dictionaries.
+
+    Args:
+        max_results (int): Maximum number of upcoming events to fetch. Default is 10.
+
+    Returns:
+        list[dict]: List of events, each with keys like 'summary', 'start', 'end', 'id', or error msg
+    """
+    try:
+        service = authenticate()
+        now = dt.datetime.now(dt.timezone.utc).isoformat() 
+        
+        events_result = service.events().list(
+            calendarId='primary',
+            timeMin=now,
+            maxResults=max_results,
+            singleEvents=True,
+            orderBy='startTime'
+        ).execute()
+        
+        events = events_result.get('items', [])
+        return events
+    
+    except HttpError as error:
+        return [{
+            "error": f"An error occurred: {error}"
+        }]

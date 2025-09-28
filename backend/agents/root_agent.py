@@ -7,7 +7,7 @@ from google.adk.models.lite_llm import LiteLlm
 from agents.calendar_agent import calendar_agent
 from agents.syllabus_agent import syllabus_agent
 
-AGENT_MODEL = "gemini-2.5-flash"
+AGENT_MODEL = "gemini-2.0-flash-exp"
 
 root_agent = Agent(
     name="root_agent",
