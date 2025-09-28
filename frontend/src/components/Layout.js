@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, Home, Calendar, Users, MessageCircle, Gamepad2, User, LogOut, X, UserPlus } from 'lucide-react';
+import { Menu, Home, Calendar, Users, MessageCircle, Gamepad2, User, LogOut, X, UserPlus, Flame, Star, Zap } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Footer from './Footer';
 import Login from './Login';
 import Register from './Register';
+import { getGamificationStatsFromState } from '../utils/gamification';
 
 const Layout = ({ children, isAuthenticated, onLogout, showLogin, setShowLogin, onLogin, showRegister, setShowRegister, onRegister }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -24,6 +25,8 @@ const Layout = ({ children, isAuthenticated, onLogout, showLogin, setShowLogin, 
         { path: '/', icon: Home, label: 'Home' },
       ];
 
+      // Get gamification stats from centralized state
+      const stats = getGamificationStatsFromState();
   return (
     <div className="min-h-screen flex flex-col">
       <motion.nav 
@@ -74,16 +77,39 @@ const Layout = ({ children, isAuthenticated, onLogout, showLogin, setShowLogin, 
               </div>
             </div>
 
-            {/* Right Section - Auth Buttons */}
+            {/* Right Section - Gamification Stats + Auth Buttons */}
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               {isAuthenticated ? (
-                <button 
-                  onClick={onLogout} 
-                  className="flex items-center gap-1 sm:gap-2 text-[#86B0BD] hover:text-gray-700 px-4 sm:px-5 lg:px-6 py-3 lg:py-4 rounded-full hover:bg-[#D1D3D4]/30 transition-all border border-[#D1D3D4]/20 text-sm lg:text-base"
-                >
-                  <User className="w-4 h-4 lg:w-5 lg:h-5 flex-shrink-0" />
-                  <span className="hidden sm:inline">Logout</span>
-                </button>
+                <>
+                  {/* Gamification Stats */}
+                  <div className="hidden md:flex items-center gap-3 px-3 py-2 bg-[#86B0BD]/10 rounded-full border border-[#86B0BD]/20">
+                    {/* Streak */}
+                    <div className="flex items-center gap-1 text-[#E2A16F]">
+                      <Flame className="w-4 h-4" />
+                      <span className="text-sm font-semibold">{stats.streak}</span>
+                    </div>
+                    
+                    {/* Level */}
+                    <div className="flex items-center gap-1 text-[#86B0BD]">
+                      <Star className="w-4 h-4" />
+                      <span className="text-sm font-semibold">Lvl {stats.level}</span>
+                    </div>
+                    
+                    {/* XP */}
+                    <div className="flex items-center gap-1 text-[#6E9AAB]">
+                      <Zap className="w-4 h-4" />
+                      <span className="text-sm font-semibold">{stats.xp} XP</span>
+                    </div>
+                  </div>
+                  
+                  <button 
+                    onClick={onLogout} 
+                    className="flex items-center gap-1 sm:gap-2 text-[#86B0BD] hover:text-gray-700 px-4 sm:px-5 lg:px-6 py-3 lg:py-4 rounded-full hover:bg-[#D1D3D4]/30 transition-all border border-[#D1D3D4]/20 text-sm lg:text-base"
+                  >
+                    <User className="w-4 h-4 lg:w-5 lg:h-5 flex-shrink-0" />
+                    <span className="hidden sm:inline">Logout</span>
+                  </button>
+                </>
               ) : (
                 <div className="flex items-center gap-2">
                   <button 
@@ -118,6 +144,27 @@ const Layout = ({ children, isAuthenticated, onLogout, showLogin, setShowLogin, 
             transition={{ duration: 0.3 }}
           >
             <div className="p-6 space-y-4 pt-24">
+              {/* Mobile Gamification Stats */}
+              {isAuthenticated && (
+                <div className="mb-6 p-4 bg-[#86B0BD]/10 rounded-2xl border border-[#86B0BD]/20">
+                  <h3 className="text-sm font-semibold text-[#86B0BD] mb-3">Your Progress</h3>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[#E2A16F]">
+                      <Flame className="w-5 h-5" />
+                      <span className="font-semibold">2 Day Streak</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[#86B0BD]">
+                      <Star className="w-5 h-5" />
+                      <span className="font-semibold">Level {stats.level}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[#6E9AAB]">
+                      <Zap className="w-5 h-5" />
+                      <span className="font-semibold">{stats.xp} XP</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {navItems.map((item) => {
                 const Icon = item.icon;
                 return (

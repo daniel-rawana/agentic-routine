@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from ..utils.oauth import google_oauth_flow, exchange_code_for_tokens, get_userinfo
-from ..utils.config import settings
+from utils.oauth import google_oauth_flow, exchange_code_for_tokens, get_userinfo
+from utils.config import settings
 
 router = APIRouter()
 

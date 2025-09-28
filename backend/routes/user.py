@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from uuid import UUID
 import json
-from ..utils.supabase import get_supabase
+from utils.supabase import get_supabase
 
 router = APIRouter(prefix="/api", tags=["user"])
 
