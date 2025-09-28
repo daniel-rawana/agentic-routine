@@ -54,8 +54,7 @@ def extract_assignments(syllabus_text: str) -> dict:
         prompt = f"""
 You are an expert academic assistant. Your task is to extract all assignments and their due dates from the provided syllabus text.
 
-Return the information ONLY as a single JSON object with one key: "assignments".
-The value should be an array of objects, each with three keys:
+Return the information ONLY as bullet points for each assignment with:
 - "assignment_name": The name of the assignment (string).
 - "due_date": The due date in "YYYY-MM-DD" format (string). Use the year {ASSIGNMENTS_YEAR}.
 - "description": The description if available (string). Else leave it as an empty string.
