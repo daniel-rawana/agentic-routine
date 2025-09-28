@@ -1,14 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, Plus, Check, Trash2 } from 'lucide-react';
+import { Calendar, Plus, Check, Trash2, Zap } from 'lucide-react';
+import { addXP, getGamificationStatsFromState } from '../utils/gamification';
 
 const CalendarWithTodo = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [tasks, setTasks] = useState([]);
+  
+  // Load tasks from localStorage or use default
+  const loadTasks = () => {
+    const savedTasks = localStorage.getItem('calendar_tasks');
+    if (savedTasks) {
+      return JSON.parse(savedTasks);
+    }
+    return [
+      { id: 1, text: 'Finish project report', date: '2025-01-15', completed: false },
+      { id: 2, text: 'Gym session', date: '2025-01-16', completed: true },
+      { id: 3, text: 'Call mom', date: '2025-01-17', completed: false },
+    ];
+  };
+  
+  const [tasks, setTasks] = useState(loadTasks);
   const [newTask, setNewTask] = useState('');
   const [calendarEvents, setCalendarEvents] = useState([]);
+  
+  // Gamification state
+  const [showXPGain, setShowXPGain] = useState(false);
+  const [xpGainAmount, setXPGainAmount] = useState(0);
+  const [gamificationStats, setGamificationStats] = useState(getGamificationStatsFromState());
 
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // Save tasks to localStorage
+  const saveTasks = (updatedTasks) => {
+    localStorage.setItem('calendar_tasks', JSON.stringify(updatedTasks));
+  };
 
   // Fetch calendar events from backend
   useEffect(() => {
@@ -37,7 +62,9 @@ const CalendarWithTodo = () => {
 
   const addTask = () => {
     if (newTask.trim()) {
-      setTasks(prev => [...prev, { id: Date.now(), text: newTask, date: '2025-01-20', completed: false }]);
+      const updatedTasks = [...tasks, { id: Date.now(), text: newTask, date: '2025-01-20', completed: false }];
+      setTasks(updatedTasks);
+      saveTasks(updatedTasks);
       setNewTask('');
     }
   };
@@ -59,9 +86,29 @@ const CalendarWithTodo = () => {
       }
     } else {
       // Toggle manual tasks normally
-      setTasks(prev => prev.map(task => 
-        task.id === id ? { ...task, completed: !task.completed } : task
-      ));
+      const updatedTasks = tasks.map(task => {
+        if (task.id === id) {
+          const wasCompleted = task.completed;
+          const newCompleted = !task.completed;
+          
+          // Award XP only when completing a task (not uncompleting)
+          if (!wasCompleted && newCompleted) {
+            const updatedStats = addXP(50);
+            setGamificationStats(updatedStats);
+            
+            // Show XP gain animation
+            setXPGainAmount(50);
+            setShowXPGain(true);
+            setTimeout(() => setShowXPGain(false), 2000);
+          }
+          
+          return { ...task, completed: newCompleted };
+        }
+        return task;
+      });
+      
+      setTasks(updatedTasks);
+      saveTasks(updatedTasks);
     }
   };
 
@@ -71,7 +118,9 @@ const CalendarWithTodo = () => {
       await deleteCalendarEvent(id);
     } else {
       // Delete manual task
-      setTasks(prev => prev.filter(task => task.id !== id));
+      const updatedTasks = tasks.filter(task => task.id !== id);
+      setTasks(updatedTasks);
+      saveTasks(updatedTasks);
     }
   };
 
@@ -100,6 +149,9 @@ const CalendarWithTodo = () => {
   
   // Combine manual tasks and calendar events
   const allTasks = [...tasks, ...calendarEvents];
+  
+  // Get current gamification stats
+  const stats = gamificationStats;
 
   return (
     <motion.div 
@@ -112,9 +164,17 @@ const CalendarWithTodo = () => {
         <h2 className="text-2xl font-bold text-gray-800">
           <Calendar className="w-8 h-8 inline mr-2" /> Calendar & Tasks
         </h2>
-        <button className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl hover:bg-orange-600">
-          <Plus className="w-5 h-5" /> Add View
-        </button>
+        <div className="flex items-center gap-4">
+          {/* XP Display */}
+          <div className="flex items-center gap-2 bg-gradient-to-r from-purple-100 to-purple-200 px-4 py-2 rounded-full">
+            <Zap className="w-5 h-5 text-purple-600" />
+            <span className="text-purple-700 font-semibold">{stats.xp} XP</span>
+            <span className="text-purple-600 text-sm">Lvl {stats.level}</span>
+          </div>
+          <button className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-xl hover:bg-orange-600">
+            <Plus className="w-5 h-5" /> Add View
+          </button>
+        </div>
       </div>
 
       {/* Simplified Calendar Grid */}
@@ -211,6 +271,21 @@ const CalendarWithTodo = () => {
           ))}
         </div>
       </div>
+      
+      {/* XP Gain Animation */}
+      {showXPGain && (
+        <motion.div
+          className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50"
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0, opacity: 0 }}
+        >
+          <div className="bg-green-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2">
+            <Zap className="w-5 h-5" />
+            <span className="font-bold">+{xpGainAmount} XP!</span>
+          </div>
+        </motion.div>
+      )}
     </motion.div>
   );
 };

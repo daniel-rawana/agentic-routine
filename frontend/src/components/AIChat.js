@@ -385,23 +385,24 @@ const AIChat = ({ isOpen, onClose, isRecording, chatApiRef, onRecordingStatusCha
             <h3 className="font-bold text-gray-800">AI Assistant</h3>
 
             {isLoading ? (
-            {isRecording && (
-                <span className="text-red-500 font-medium text-sm flex items-center gap-1">
-                    <MicOff className="w-4 h-4" /> Mic Active
-                </span>
-            )}
-            {isLoading && !isRecording && (
               <div className="flex items-center gap-1 text-sm text-gray-500">
-                <div className="animate-pulse">•</div>
-                <div className="animate-pulse delay-100">•</div>
-                <div className="animate-pulse delay-200">•</div>
-                <span className="ml-1">Thinking...</span>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                Thinking...
               </div>
-            ) : lastCompletedAt && (
-              <div className="flex items-center gap-1 text-sm text-green-600">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span>Ready</span>
-              </div>
+            ) : (
+              <>
+                {isRecording && (
+                  <span className="text-red-500 font-medium text-sm flex items-center gap-1">
+                    <MicOff className="w-4 h-4" /> Mic Active
+                  </span>
+                )}
+                {!isRecording && lastCompletedAt && (
+                  <div className="flex items-center gap-1 text-sm text-green-600">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Ready</span>
+                  </div>
+                )}
+              </>
             )}
           </div>
           <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100">
