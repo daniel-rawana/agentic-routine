@@ -30,6 +30,9 @@ export const getGamificationState = () => {
 export const setXP = (newXP) => {
   gamificationState.xp = newXP;
   updateLevel();
+  
+  // Dispatch custom event to notify components of the update
+  window.dispatchEvent(new CustomEvent('gamificationUpdate'));
 };
 
 /**
@@ -38,6 +41,9 @@ export const setXP = (newXP) => {
  */
 export const setStreak = (newStreak) => {
   gamificationState.streak = newStreak;
+  
+  // Dispatch custom event to notify components of the update
+  window.dispatchEvent(new CustomEvent('gamificationUpdate'));
 };
 
 /**
@@ -48,6 +54,10 @@ export const setStreak = (newStreak) => {
 export const addXP = (xpToAdd) => {
   gamificationState.xp += xpToAdd;
   updateLevel();
+  
+  // Dispatch custom event to notify components of the update
+  window.dispatchEvent(new CustomEvent('gamificationUpdate'));
+  
   return { ...gamificationState };
 };
 

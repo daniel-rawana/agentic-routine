@@ -9,9 +9,28 @@ import { getGamificationStatsFromState } from '../utils/gamification';
 
 const Layout = ({ children, isAuthenticated, onLogout, showLogin, setShowLogin, onLogin, showRegister, setShowRegister, onRegister }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [gamificationStats, setGamificationStats] = useState(getGamificationStatsFromState());
   const location = useLocation();
   const navigate = useNavigate();
   const isPrivate = location.pathname !== '/' && location.pathname !== '/login';
+
+  // Update gamification stats when localStorage changes
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setGamificationStats(getGamificationStatsFromState());
+    };
+
+    // Listen for storage events (when other tabs update localStorage)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events (when same tab updates)
+    window.addEventListener('gamificationUpdate', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('gamificationUpdate', handleStorageChange);
+    };
+  }, []);
 
   const navItems = isAuthenticated 
     ? [
@@ -24,9 +43,6 @@ const Layout = ({ children, isAuthenticated, onLogout, showLogin, setShowLogin, 
     : [
         { path: '/', icon: Home, label: 'Home' },
       ];
-
-      // Get gamification stats from centralized state
-      const stats = getGamificationStatsFromState();
   return (
     <div className="min-h-screen flex flex-col">
       <motion.nav 
@@ -86,19 +102,19 @@ const Layout = ({ children, isAuthenticated, onLogout, showLogin, setShowLogin, 
                     {/* Streak */}
                     <div className="flex items-center gap-1 text-[#E2A16F]">
                       <Flame className="w-4 h-4" />
-                      <span className="text-sm font-semibold">{stats.streak}</span>
+                      <span className="text-sm font-semibold">{gamificationStats.streak}</span>
                     </div>
                     
                     {/* Level */}
                     <div className="flex items-center gap-1 text-[#86B0BD]">
                       <Star className="w-4 h-4" />
-                      <span className="text-sm font-semibold">Lvl {stats.level}</span>
+                      <span className="text-sm font-semibold">Lvl {gamificationStats.level}</span>
                     </div>
                     
                     {/* XP */}
                     <div className="flex items-center gap-1 text-[#6E9AAB]">
                       <Zap className="w-4 h-4" />
-                      <span className="text-sm font-semibold">{stats.xp} XP</span>
+                      <span className="text-sm font-semibold">{gamificationStats.xp} XP</span>
                     </div>
                   </div>
                   
@@ -151,15 +167,15 @@ const Layout = ({ children, isAuthenticated, onLogout, showLogin, setShowLogin, 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-[#E2A16F]">
                       <Flame className="w-5 h-5" />
-                      <span className="font-semibold">2 Day Streak</span>
+                      <span className="font-semibold">{gamificationStats.streak} Day Streak</span>
                     </div>
                     <div className="flex items-center gap-2 text-[#86B0BD]">
                       <Star className="w-5 h-5" />
-                      <span className="font-semibold">Level {stats.level}</span>
+                      <span className="font-semibold">Level {gamificationStats.level}</span>
                     </div>
                     <div className="flex items-center gap-2 text-[#6E9AAB]">
                       <Zap className="w-5 h-5" />
-                      <span className="font-semibold">{stats.xp} XP</span>
+                      <span className="font-semibold">{gamificationStats.xp} XP</span>
                     </div>
                   </div>
                 </div>
