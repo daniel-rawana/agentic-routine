@@ -22,144 +22,141 @@ const App = () => {
   const [user, setUser] = useState(null);
 
   // 🆕 ADD THIS FUNCTION - Initialize gamification profile
-  const initializeGamificationProfile = async (userId) => {
-    try {
-      console.log('🔍 [App.js] Initializing gamification for user:', userId);
+  const initializeGamificationProfile = async () => {
+  try {
+    // Get the user data from localStorage (which contains the Google ID)
+    const userData = localStorage.getItem('user');
+    if (!userData) {
+      console.error('❌ [App.js] No user data found in localStorage');
+      return;
+    }
+
+    const parsedUser = JSON.parse(userData);
+    const googleUserId = parsedUser.id; // This is the long number from Google OAuth
+    
+    console.log('🔍 [App.js] Initializing gamification for Google user ID:', googleUserId);
+    
+    // Step 1: Validate/create user profile using Google ID
+    const validateResponse = await fetch(`http://127.0.0.1:8000/api/validate-user/${googleUserId}`, {
+      method: 'POST'
+    });
+    
+    if (validateResponse.ok) {
+      const validateResult = await validateResponse.json();
+      console.log('✅ [App.js] User validation result:', validateResult);
       
-      // Step 1: Validate/create user profile
-      const validateResponse = await fetch(`http://127.0.0.1:8000/api/validate-user/${userId}`, {
-        method: 'POST'
-      });
-      
-      if (validateResponse.ok) {
-        const validateResult = await validateResponse.json();
-        console.log('✅ [App.js] User validation result:', validateResult);
-        
-        if (validateResult.created) {
-          console.log('🎉 [App.js] New gamification profile created!');
-        } else {
-          console.log('✅ [App.js] Existing gamification profile found');
-        }
-        
-        // Step 2: Load user profile data
-        const profileResponse = await fetch(`http://127.0.0.1:8000/api/profile/${userId}`);
-        
-        if (profileResponse.ok) {
-          const profileData = await profileResponse.json();
-          console.log('✅ [App.js] User gamification profile loaded:', profileData);
-          
-          // Store gamification data in localStorage
-          localStorage.setItem('user_profile', JSON.stringify(profileData));
-          
-        } else {
-          console.error('❌ [App.js] Failed to load user profile');
-        }
+      if (validateResult.created) {
+        console.log('🎉 [App.js] New gamification profile created for Google ID:', googleUserId);
       } else {
-        console.error('❌ [App.js] Failed to validate user');
+        console.log('✅ [App.js] Existing gamification profile found for Google ID:', googleUserId);
       }
-    } catch (error) {
-      console.error('❌ [App.js] Error initializing gamification:', error);
-    }
-  };
-
-  useEffect(() => {
-    // Check for existing auth token in localStorage
-    const savedToken = localStorage.getItem('googleIdToken');
-    if (savedToken) {
-      try {
-        // Decode the JWT token to get user info
-        const decodedToken = jwtDecode(savedToken);
-        console.log('🔍 [App.js] Decoded token:', decodedToken);
+      
+      // Step 2: Load user profile data
+      const profileResponse = await fetch(`http://127.0.0.1:8000/api/profile/${googleUserId}`);
+      
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json();
+        console.log('✅ [App.js] User gamification profile loaded:', profileData);
         
-        // Check if token is still valid
-        const currentTime = Date.now() / 1000;
-        if (decodedToken.exp > currentTime) {
-          setIsAuthenticated(true);
-          setUser({
-            id: decodedToken.sub,      // Google user ID
-            email: decodedToken.email,
-            name: decodedToken.name,
-            picture: decodedToken.picture
-          });
-          
-          // 🆕 ADD THIS: Initialize gamification after setting user
-          initializeGamificationProfile(decodedToken.sub);
-          
-        } else {
-          console.log('🔍 [App.js] Token expired, clearing auth');
-          localStorage.removeItem('googleIdToken');
-        }
-      } catch (error) {
-        console.error('❌ [App.js] Error decoding token:', error);
-        localStorage.removeItem('googleIdToken');
+        // Store gamification data in localStorage
+        localStorage.setItem('user_profile', JSON.stringify(profileData));
+        
+      } else {
+        console.error('❌ [App.js] Failed to load user profile');
       }
+    } else {
+      console.error('❌ [App.js] Failed to validate user');
     }
-  }, []);
+  } catch (error) {
+    console.error('❌ [App.js] Error initializing gamification:', error);
+  }
+};
 
-  // 🆕 MODIFY YOUR EXISTING handleLogin FUNCTION
-  const handleLogin = async (idToken) => {
-    console.log("Login successful! ID Token received.");
-    setIsAuthenticated(true);
-    setShowLogin(false);
-    localStorage.setItem('googleIdToken', idToken);
-    
+// 🆕 SIMPLIFIED useEffect - just check if user exists and initialize gamification
+useEffect(() => {
+  // Check for existing user data in localStorage
+  const userData = localStorage.getItem('user');
+  const savedToken = localStorage.getItem('googleIdToken');
+  
+  if (userData && savedToken) {
     try {
-      // Decode the token to get user info
-      const decodedToken = jwtDecode(idToken);
-      console.log('🔍 [App.js] Login - Decoded token:', decodedToken);
+      const parsedUser = JSON.parse(userData);
+      console.log('🔍 [App.js] Found existing user data:', parsedUser);
       
-      const userData = {
-        id: decodedToken.sub,      // Google user ID
-        email: decodedToken.email,
-        name: decodedToken.name,
-        picture: decodedToken.picture
-      };
+      setUser(parsedUser);
+      setIsAuthenticated(true);
       
-      setUser(userData);
-      
-      // 🆕 ADD THIS: Initialize gamification for newly logged in user
-      await initializeGamificationProfile(decodedToken.sub);
+      // Initialize gamification with the existing user data
+      initializeGamificationProfile();
       
     } catch (error) {
-      console.error('❌ [App.js] Error processing login:', error);
+      console.error('❌ [App.js] Error parsing user data:', error);
+      // Clear corrupted data
+      localStorage.removeItem('user');
+      localStorage.removeItem('googleIdToken');
     }
-  };
+  }
+}, []);
 
-  // 🆕 MODIFY YOUR EXISTING handleRegister FUNCTION
-  const handleRegister = async (idToken) => {
-    console.log("Registration successful! ID Token received.");
-    setIsAuthenticated(true);
-    setShowRegister(false);
-    localStorage.setItem('googleIdToken', idToken);
-    
-    try {
-      // Decode the token to get user info
-      const decodedToken = jwtDecode(idToken);
-      console.log('🔍 [App.js] Register - Decoded token:', decodedToken);
-      
-      const userData = {
-        id: decodedToken.sub,      // Google user ID
-        email: decodedToken.email,
-        name: decodedToken.name,
-        picture: decodedToken.picture
-      };
-      
-      setUser(userData);
-      
-      // 🆕 ADD THIS: Initialize gamification for newly registered user
-      await initializeGamificationProfile(decodedToken.sub);
-      
-    } catch (error) {
-      console.error('❌ [App.js] Error processing registration:', error);
-    }
+// 🆕 SIMPLIFIED handleLogin - store user data and initialize gamification
+const handleLogin = async (loginData) => {
+  console.log("Login successful! Login data received:", loginData);
+  
+  // Extract user info from the login data
+  const userData = {
+    id: loginData.userInfo.id,           // This is the Google user ID (long number)
+    email: loginData.userInfo.email,
+    name: loginData.userInfo.name,
+    picture: loginData.userInfo.picture
   };
+  
+  console.log('🔍 [App.js] User data extracted:', userData);
+  
+  // Store user data and token
+  localStorage.setItem('user', JSON.stringify(userData));
+  localStorage.setItem('googleIdToken', loginData.access_token);
+  
+  setUser(userData);
+  setIsAuthenticated(true);
+  setShowLogin(false);
+  
+  // Initialize gamification with the new user data
+  await initializeGamificationProfile();
+};
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setUser(null);
-    localStorage.removeItem('googleIdToken');
-    localStorage.removeItem('user_profile');  // 🆕 ADD THIS: Clear gamification data
+// 🆕 SIMPLIFIED handleRegister - same as handleLogin
+const handleRegister = async (registerData) => {
+  console.log("Registration successful! Register data received:", registerData);
+  
+  // Extract user info from the register data
+  const userData = {
+    id: registerData.userInfo.id,           // This is the Google user ID (long number)
+    email: registerData.userInfo.email,
+    name: registerData.userInfo.name,
+    picture: registerData.userInfo.picture
   };
+  
+  console.log('🔍 [App.js] User data extracted:', userData);
+  
+  // Store user data and token
+  localStorage.setItem('user', JSON.stringify(userData));
+  localStorage.setItem('googleIdToken', registerData.access_token);
+  
+  setUser(userData);
+  setIsAuthenticated(true);
+  setShowRegister(false);
+  
+  // Initialize gamification with the new user data
+  await initializeGamificationProfile();
+};
+
+const handleLogout = () => {
+  setIsAuthenticated(false);
+  setUser(null);
+  localStorage.removeItem('googleIdToken');
+  localStorage.removeItem('user');
+  localStorage.removeItem('user_profile');  // Clear gamification data
+};
 
   const ProtectedRoute = ({ children }) => {
     return isAuthenticated ? children : <Navigate to="/" />;
