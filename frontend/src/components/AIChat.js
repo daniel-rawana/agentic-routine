@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageCircle, Send, X } from 'lucide-react';
+import { MessageCircle, Send, X, Upload, FileText } from 'lucide-react';
 
 const AIChat = ({ isOpen, onClose }) => {
   const [messages, setMessages] = useState([
@@ -9,9 +9,12 @@ const AIChat = ({ isOpen, onClose }) => {
   const [input, setInput] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(null);
   const eventSourceRef = useRef(null);
   const sessionIdRef = useRef(null);
   const currentMessageIdRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // Initialize SSE connection
   useEffect(() => {
@@ -61,12 +64,16 @@ const AIChat = ({ isOpen, onClose }) => {
         // Handle text messages
         if (messageFromServer.mime_type === 'text/plain') {
           const messageText = messageFromServer.data;
+          console.log('Processing text message:', messageText);
+          console.log('Current message ID:', currentMessageIdRef.current);
           
           setMessages(prev => {
+            console.log('Previous messages:', prev);
             const newMessages = [...prev];
             
             // Start a new AI message if needed
             if (!currentMessageIdRef.current) {
+              console.log('Creating new AI message');
               currentMessageIdRef.current = `ai-${Date.now()}`;
               newMessages.push({
                 id: currentMessageIdRef.current,
@@ -75,17 +82,29 @@ const AIChat = ({ isOpen, onClose }) => {
               });
             } else {
               // Append to existing AI message
+              console.log('Appending to existing message');
               const messageIndex = newMessages.findIndex(
                 msg => msg.id === currentMessageIdRef.current
               );
               if (messageIndex !== -1) {
+                console.log('Found message at index:', messageIndex);
                 newMessages[messageIndex] = {
                   ...newMessages[messageIndex],
                   text: newMessages[messageIndex].text + messageText
                 };
+                console.log('Updated message text:', newMessages[messageIndex].text);
+              } else {
+                console.log('Message not found, creating new one');
+                currentMessageIdRef.current = `ai-${Date.now()}`;
+                newMessages.push({
+                  id: currentMessageIdRef.current,
+                  text: messageText,
+                  sender: 'ai'
+                });
               }
             }
             
+            console.log('New messages array:', newMessages);
             return newMessages;
           });
         }
@@ -157,6 +176,87 @@ const AIChat = ({ isOpen, onClose }) => {
     }
   };
 
+  const validateFile = (file) => {
+    if (file.type !== 'application/pdf') {
+      alert('Please upload only PDF files');
+      return false;
+    }
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      alert('File size must be less than 10MB');
+      return false;
+    }
+    return true;
+  };
+
+  const uploadFile = async (file) => {
+    if (!validateFile(file)) return;
+    
+    setUploadingFile(file);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch(`http://localhost:8000/upload-pdf/${sessionIdRef.current}`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (response.ok) {
+        // Add file message to chat
+        setMessages(prev => [
+          ...prev, 
+          { 
+            id: `file-${Date.now()}`, 
+            text: `📄 Uploaded: ${file.name}`, 
+            sender: 'user',
+            type: 'file'
+          }
+        ]);
+        
+        // Send processing message to agent
+        sendMessage(`Please extract assignment dates from the uploaded PDF: ${file.name}`);
+        setIsLoading(true);
+      } else {
+        alert('Failed to upload file');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Error uploading file');
+    } finally {
+      setUploadingFile(null);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      uploadFile(files[0]);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      uploadFile(files[0]);
+    }
+    // Reset input
+    e.target.value = '';
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -167,10 +267,15 @@ const AIChat = ({ isOpen, onClose }) => {
       exit={{ opacity: 0 }}
     >
       <motion.div 
-        className="bg-white/95 backdrop-blur-xl rounded-3xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden shadow-2xl"
+        className={`bg-white/95 backdrop-blur-xl rounded-3xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden shadow-2xl transition-all duration-200 ${
+          isDragOver ? 'ring-2 ring-blue-500 ring-opacity-50' : ''
+        }`}
         initial={{ scale: 0.9, y: 50 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 50 }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -193,7 +298,22 @@ const AIChat = ({ isOpen, onClose }) => {
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="flex-1 p-4 overflow-y-auto space-y-4">
+        <div className="flex-1 p-4 overflow-y-auto space-y-4 relative">
+          {isDragOver && (
+            <motion.div
+              className="absolute inset-0 bg-blue-50/90 backdrop-blur-sm flex items-center justify-center z-10 rounded-xl border-2 border-dashed border-blue-300"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <div className="text-center">
+                <Upload className="w-12 h-12 text-blue-500 mx-auto mb-2" />
+                <p className="text-blue-600 font-medium">Drop your PDF here</p>
+                <p className="text-blue-500 text-sm">To extract assignment dates</p>
+              </div>
+            </motion.div>
+          )}
+          
           <AnimatePresence>
             {messages.map((msg) => (
               <motion.div
@@ -203,21 +323,62 @@ const AIChat = ({ isOpen, onClose }) => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
               >
-                <div className={`max-w-[80%] p-3 rounded-2xl ${msg.sender === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-800'}`}>
+                <div className={`max-w-[80%] p-3 rounded-2xl ${
+                  msg.sender === 'user' 
+                    ? msg.type === 'file' 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-blue-500 text-white'
+                    : 'bg-gray-200 text-gray-800'
+                }`}>
+                  {msg.type === 'file' && <FileText className="w-4 h-4 inline mr-2" />}
                   {msg.text}
                 </div>
               </motion.div>
             ))}
           </AnimatePresence>
+          
+          {uploadingFile && (
+            <motion.div
+              className="flex justify-end"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="max-w-[80%] p-3 rounded-2xl bg-yellow-500 text-white">
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                  Uploading {uploadingFile.name}...
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
         <div className="p-4 border-t border-gray-200">
           <div className="flex gap-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!isConnected || uploadingFile}
+              className={`p-2 rounded-full transition-colors ${
+                isConnected && !uploadingFile
+                  ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' 
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              }`}
+              title="Upload PDF"
+            >
+              <Upload className="w-5 h-5" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-              placeholder="Type your message..."
+              placeholder="Type your message or drop a PDF..."
               className="flex-1 px-4 py-2 border border-gray-300 rounded-full outline-none"
             />
             <button 

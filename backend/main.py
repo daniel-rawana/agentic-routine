@@ -2,6 +2,8 @@ import os
 import json
 import base64
 import warnings
+import shutil
+import tempfile
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -17,7 +19,7 @@ from google.adk.agents import LiveRequestQueue
 from google.adk.agents.run_config import RunConfig
 from google.genai import types
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile, File, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -205,6 +207,56 @@ async def send_message_endpoint(user_id: int, request: Request):
         return {"error": f"Mime type not supported: {mime_type}"}
 
     return {"status": "sent"}
+
+
+@app.post("/upload-pdf/{user_id}")
+async def upload_pdf(user_id: str, file: UploadFile = File(...)):
+    """Upload and process PDF file"""
+    
+    # Validate file type
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    
+    user_id_str = str(user_id)
+    
+    # Get the live request queue for this user
+    live_request_queue = active_sessions.get(user_id_str)
+    if not live_request_queue:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    try:
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            # Copy uploaded file to temp file
+            shutil.copyfileobj(file.file, temp_file)
+            temp_file_path = temp_file.name
+        
+        # Create uploads directory if it doesn't exist
+        uploads_dir = Path("uploads")
+        uploads_dir.mkdir(exist_ok=True)
+        
+        # Save file with user session in filename
+        saved_file_path = uploads_dir / f"{user_id}_{file.filename}"
+        shutil.move(temp_file_path, saved_file_path)
+        
+        print(f"[PDF UPLOAD]: User {user_id} uploaded {file.filename}")
+        
+        # Send message to agent to process the PDF
+        content = Content(
+            role="user", 
+            parts=[Part.from_text(text=f"Please extract assignment dates from the uploaded PDF: {saved_file_path}")]
+        )
+        live_request_queue.send_content(content=content)
+        
+        return {"status": "success", "filename": file.filename, "message": "PDF uploaded and processing started"}
+        
+    except Exception as e:
+        # Clean up temp file if it exists
+        if 'temp_file_path' in locals() and os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+        
+        print(f"[PDF UPLOAD ERROR]: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process PDF: {str(e)}")
 
 
 @app.get("/api/calendar/events")
