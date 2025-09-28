@@ -67,7 +67,7 @@ const Layout = ({ children, isAuthenticated, onLogout, showLogin, setShowLogin, 
                  to={isAuthenticated ? '/dashboard' : '/'} 
                  className="text-base sm:text-lg lg:text-xl font-bold text-[#86B0BD] whitespace-nowrap"
                >
-                 My SuccessCoach
+                 LifeQuest
                </Link>
              </div>
 

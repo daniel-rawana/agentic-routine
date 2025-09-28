@@ -4,6 +4,7 @@
 let gamificationState = {
   xp: 650,
   streak: 2,
+  tokens: 1000,
   level: 0 // Will be calculated dynamically
 };
 
@@ -54,6 +55,20 @@ export const setStreak = (newStreak) => {
 export const addXP = (xpToAdd) => {
   gamificationState.xp += xpToAdd;
   updateLevel();
+  
+  // Dispatch custom event to notify components of the update
+  window.dispatchEvent(new CustomEvent('gamificationUpdate'));
+  
+  return { ...gamificationState };
+};
+
+/**
+ * Add tokens and update state
+ * @param {number} tokensToAdd - Tokens to add
+ * @returns {object} - Updated gamification state
+ */
+export const addTokens = (tokensToAdd) => {
+  gamificationState.tokens += tokensToAdd;
   
   // Dispatch custom event to notify components of the update
   window.dispatchEvent(new CustomEvent('gamificationUpdate'));
@@ -121,6 +136,7 @@ export const getGamificationStatsFromState = () => {
     xp: gamificationState.xp,
     level: gamificationState.level,
     streak: gamificationState.streak,
+    tokens: gamificationState.tokens,
     progress: getLevelProgress(gamificationState.xp),
     xpForNextLevel: getXPForNextLevel(gamificationState.xp)
   };

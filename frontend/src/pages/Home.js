@@ -23,7 +23,7 @@ const Home = () => {
       {/* Hero Section */}
       <div className="space-y-8 lg:space-y-12 pt-4 lg:pt-6">
         <Rocket className="w-24 h-24 lg:w-32 lg:h-32 text-[#86B0BD] mx-auto mb-8 animate-bounce" />
-        <h1 className="text-5xl lg:text-6xl font-bold text-[#86B0BD] mb-6 text-center">My SuccessCoach</h1>
+        <h1 className="text-5xl lg:text-6xl font-bold text-[#86B0BD] mb-6 text-center">LifeQuest</h1>
         <p className="text-xl lg:text-2xl text-gray-700 max-w-3xl mx-auto leading-relaxed text-center px-4">
           Your gentle companion for building better habits, achieving goals, and celebrating progress in a warm, supportive environment.
         </p>

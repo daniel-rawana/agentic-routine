@@ -18,7 +18,7 @@ const Footer = () => {
       <p className="flex items-center justify-center gap-2 text-gray-700">
         Made with <Heart className="w-4 h-4 fill-[#E2A16F]" /> by Your Friendly AI
       </p>
-      <p className="text-sm text-gray-600">© 2024 My Success Coach • Powered by AI</p>
+      <p className="text-sm text-gray-600">© 2024 LifeQuest • Powered by AI</p>
     </motion.footer>
   );
 };
