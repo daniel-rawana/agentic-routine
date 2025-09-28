@@ -99,3 +99,56 @@ def get_upcoming_events(max_results: int = 10):
         return [{
             "error": f"An error occurred: {error}"
         }]
+
+def delete_event(event_id: str) -> dict:
+    """
+    Deletes an event from the user's calendar by event ID.
+
+    Args:
+        event_id (str): A string containing the id of the event to delete
+
+    Returns:
+        dict: A dictionary containing the status code of the operation or error msg
+    """
+    try:
+        service = authenticate()
+
+        service.events().delete(calendarId='primary', eventId=event_id).execute()
+
+        return {
+            "status": "success"
+        }
+    except HttpError as error:
+        return {
+            "error": f"An error occurred: {error}"
+        }
+    
+def update_event(event_id: str, update_fields: dict) -> dict:
+    """
+    Updates an event in the user's calendar by event ID.
+
+    Args:
+        event_id (str): A string containing the id of the event to update
+        update_fields (dict): A dictionary containing the data of the updated event
+
+    Returns:
+        dict: A dictionary containing the updated event and status code or error msg
+    """
+    try:
+        service = authenticate()
+
+        event = service.events().get(calendarId='primary', eventId=event_id).execute()
+
+        event.update(update_fields)
+
+        update_event = service.events().update(calendarId='primary', eventId=event_id, body=event).execute()
+
+        return {
+            "event": update_event,
+            "status": "success"
+        }
+    except HttpError as error:
+        return {
+            "status": "error",
+            "message": error
+        }
